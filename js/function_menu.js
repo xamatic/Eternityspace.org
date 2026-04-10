@@ -331,6 +331,7 @@ $(document).ready(function(){
 		if(boomAllow(uQuote)){
 			menuLog += $("#log_menu_content .log_quote")[0].outerHTML;
 		}
+		menuLog += $("#log_menu_content .log_react")[0].outerHTML;
 		menuLog += $("#log_menu_content .log_hide")[0].outerHTML;
 		if(!mySelf(uid) && !boomAllow(canContent) && boomAllow(canReport) && !boomRoomAllow(canRoomLogs)){
 			menuLog += $("#log_menu_content .log_report")[0].outerHTML;

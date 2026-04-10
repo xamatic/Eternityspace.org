@@ -2683,14 +2683,28 @@ function getTheme(){
 		$t = 'Lite';
 	}
 	if(boomLogged()){
-		if(canTheme() && $data['user_theme'] != 'system'){
-			if(file_exists(BOOM_PATH . '/css/themes/' . $data['user_theme'] . '/' . $data['user_theme'] . '.css')){
-				$t = $data['user_theme'];
+		$user_theme = trim((string) $data['user_theme']);
+		$can_use_theme = false;
+		if($user_theme != '' && $user_theme != 'system'){
+			if(canTheme()){
+				$can_use_theme = true;
+			}
+			else if(strpos($user_theme, 'pt_') === 0 && isApprovedPublicThemeFolder($user_theme)){
+				$can_use_theme = true;
+			}
+		}
+		if($can_use_theme){
+			if(file_exists(BOOM_PATH . '/css/themes/' . $user_theme . '/' . $user_theme . '.css')){
+				$t = $user_theme;
 			}
 			else {
 				$mysqli->query("UPDATE boom_users SET user_theme = 'system' WHERE user_id = '{$data['user_id']}'");
 				redisUpdateUser($data['user_id']);
 			}
+		}
+		else if(strpos($user_theme, 'pt_') === 0){
+			$mysqli->query("UPDATE boom_users SET user_theme = 'system' WHERE user_id = '{$data['user_id']}'");
+			redisUpdateUser($data['user_id']);
 		}
 	}
 	return $t . '/' . $t . '.css';
@@ -4336,6 +4350,20 @@ function userlistRank($list, $type = 'list_rank'){
 		return roomRank($list['user_role'], $type);
 	}
 	return systemRank($list['user_rank'], $type);
+}
+function userListRoleInfo($list){
+	if(haveRole($list['user_role']) && !isStaff($list)){
+		return [
+			'key'=> 'room_' . (int) $list['user_role'],
+			'title'=> roomRankTitle($list['user_role']),
+			'sort'=> ((int) $list['user_rank'] * 100) + (int) $list['user_role'],
+		];
+	}
+	return [
+		'key'=> 'rank_' . (int) $list['user_rank'],
+		'title'=> rankTitle($list['user_rank']),
+		'sort'=> ((int) $list['user_rank'] * 100),
+	];
 }
 function rankOption($current, $val){
 	return '<option value="' . $val . '" ' . selCurrent($current, $val) . '>' . rankTitle($val) . '</option>';

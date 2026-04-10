@@ -39,6 +39,22 @@ var menuHide = 767;
 var pfocus = false;
 var curWall = 0;
 var uPing = 0;
+var reactionMenuScope = '';
+var reactionMenuTarget = 0;
+var reactionEmojiCache = [];
+var reactionMenuLoading = 0;
+var reactionSyncLock = 0;
+var slashCommandMatches = [];
+var slashCommandActive = 0;
+var slashCommands = [
+	{ command: '/topic', desc: 'Set room topic', usage: '/topic your text', insert: '/topic ' },
+	{ command: '/clear', desc: 'Clear room messages', usage: '/clear', insert: '/clear' },
+	{ command: '/logout', desc: 'Force logout user (owner)', usage: '/logout username', insert: '/logout ', ownerOnly: 1 },
+	{ command: '/clearcache', desc: 'Refresh cache (owner)', usage: '/clearcache', insert: '/clearcache', ownerOnly: 1 },
+	{ command: '/clean', desc: 'Clear your local chat view', usage: '/clean', insert: '/clean' },
+	{ command: '/monitor', desc: 'Open monitor panel', usage: '/monitor', insert: '/monitor' },
+	{ command: '/console', desc: 'Open console panel', usage: '/console', insert: '/console', staffOnly: 1 }
+];
 
 // PAGE TITLE
 
@@ -185,6 +201,10 @@ chatReload = function(){
 					}
 					if('curset' in response){
 						loadSettings(response.curset);
+					}
+					// goofy events payload
+					if('gevents' in response){
+						handleGoofyEvents(response.gevents);
 					}
 					if('call' in response){
 						checkCall(response.call);
@@ -355,9 +375,106 @@ processChatCommand = function(message){
 	});
 }
 
+getSlashCommandPool = function(){
+	var pool = [];
+	for(var i = 0; i < slashCommands.length; i++){
+		var item = slashCommands[i];
+		if(item.ownerOnly && user_rank < 100){
+			continue;
+		}
+		if(item.staffOnly && !isStaff(user_rank)){
+			continue;
+		}
+		pool.push(item);
+	}
+	return pool;
+}
+hideSlashMenu = function(){
+	$('#slash_command_list').html('');
+	$('#slash_command_menu').hide();
+	slashCommandMatches = [];
+	slashCommandActive = 0;
+}
+renderSlashMenu = function(){
+	if(!Array.isArray(slashCommandMatches) || slashCommandMatches.length < 1){
+		hideSlashMenu();
+		return;
+	}
+	var html = '';
+	for(var i = 0; i < slashCommandMatches.length; i++){
+		var cmd = slashCommandMatches[i];
+		var active = (i === slashCommandActive) ? ' slash_command_active' : '';
+		html += '<div class="slash_command_item' + active + '" data-index="' + i + '">';
+		html += '<div class="slash_command_left">';
+		html += '<div class="slash_command_name">' + cmd.command + '</div>';
+		html += '<div class="slash_command_desc">' + cmd.desc + '</div>';
+		html += '</div>';
+		html += '<div class="slash_command_usage">' + cmd.usage + '</div>';
+		html += '</div>';
+	}
+	$('#slash_command_list').html(html);
+	$('#slash_command_menu').show();
+}
+moveSlashSelection = function(step){
+	if(!slashCommandMatches.length){
+		return;
+	}
+	slashCommandActive = slashCommandActive + step;
+	if(slashCommandActive < 0){
+		slashCommandActive = slashCommandMatches.length - 1;
+	}
+	if(slashCommandActive >= slashCommandMatches.length){
+		slashCommandActive = 0;
+	}
+	renderSlashMenu();
+}
+selectSlashCommand = function(index){
+	index = parseInt(index);
+	if(isNaN(index) || !slashCommandMatches[index]){
+		return false;
+	}
+	var cmd = slashCommandMatches[index];
+	var input = $('#content');
+	input.val(cmd.insert);
+	if(input[0] && input[0].setSelectionRange){
+		input[0].setSelectionRange(cmd.insert.length, cmd.insert.length);
+	}
+	input.focus();
+	hideSlashMenu();
+	return true;
+}
+updateSlashMenu = function(value){
+	value = (value || '').toString();
+	if(value === '' || value.charAt(0) !== '/'){
+		hideSlashMenu();
+		return;
+	}
+	if(value.indexOf(' ') > -1){
+		hideSlashMenu();
+		return;
+	}
+	var query = value.substring(1).toLowerCase();
+	var pool = getSlashCommandPool();
+	var matches = [];
+	for(var i = 0; i < pool.length; i++){
+		var commandName = pool[i].command.substring(1).toLowerCase();
+		if(query === '' || commandName.indexOf(query) === 0){
+			matches.push(pool[i]);
+		}
+	}
+	if(matches.length < 1){
+		hideSlashMenu();
+		return;
+	}
+	slashCommandMatches = matches.slice(0, 8);
+	slashCommandActive = 0;
+	renderSlashMenu();
+}
+
 appendSelfChatMessage = data => {
 	if(!logExist(data)){
 		$("#show_chat ul").append(createChatLog(data));
+		triggerLinkedMessageEffects($('#show_chat ul').children().last());
 	}
 	scrollIt(0);
 }
@@ -398,6 +515,9 @@ appendChatMessage = data => {
 		}
 	}
 	$("#show_chat ul").append(message);
+	if(message !== ''){
+		triggerLinkedMessageEffects($('#show_chat ul').children().slice(-data.length));
+	}
 	scrollIt(1);
 }
 
@@ -537,6 +657,9 @@ appendPrivateMessage = (data) => {
 		}
 	}
     $("#show_private").append(message);
+	if(message !== ''){
+		triggerLinkedMessageEffects($('#show_private').children().slice(-data.length));
+	}
     privSpinner(0);
     scrollPriv(0);
     if (message !== '') {
@@ -575,6 +698,7 @@ appendSelfPrivateMessage = data => {
 	if(!privateLogExist(data)){
 		resetCannotPrivate();
 		$("#show_private").append(createPrivateLog(data));
+		triggerLinkedMessageEffects($('#show_private').children().last());
 	}
 	scrollPriv(1);
 }
@@ -1305,6 +1429,238 @@ saveColor = function(){
 			}
 	});
 }
+refreshEffectsShop = function(){
+	if(typeof getEffectsShop === 'function'){
+		getEffectsShop();
+		return;
+	}
+	if(typeof getTextOptions === 'function'){
+		getTextOptions();
+	}
+}
+initEffectsTabs = function(){
+	$(document).off('click.effectsTab', '.effects_tab').on('click.effectsTab', '.effects_tab', function(){
+		var target = $(this).attr('data-target');
+		if(!target){
+			return false;
+		}
+		$('.effects_tab').removeClass('effects_tab_active');
+		$(this).addClass('effects_tab_active');
+		$('.effects_tab_content').removeClass('effects_tab_show');
+		$('#' + target).addClass('effects_tab_show');
+		return false;
+	});
+}
+playEffectPreview = function(item){
+	var effectClass = $(item).attr('data-effect-class');
+	if(!effectClass){
+		return false;
+	}
+	var row = $(item).closest('.chat_effect_preview_row');
+	var demo = row.find('.chat_effect_demo').first();
+	var target = row.find('.chat_effect_demo_target').first();
+	if(!demo.length){
+		return false;
+	}
+	demo.removeClass(effectClass + ' cfx_preview_live');
+	if(target.length){
+		target.removeClass('cfx_target_hit');
+	}
+	void demo[0].offsetWidth;
+	demo.addClass(effectClass + ' cfx_preview_live');
+	if(effectClass.indexOf('cefx_link') !== -1 && target.length){
+		void target[0].offsetWidth;
+		target.addClass('cfx_target_hit');
+	}
+	return false;
+}
+initEffectsPreview = function(){
+	$('.chat_effect_demo[data-effect-class]').each(function(index){
+		var demo = $(this);
+		var row = demo.closest('.chat_effect_preview_row');
+		var target = row.find('.chat_effect_demo_target').first();
+		var effectClass = demo.attr('data-effect-class');
+		if(!effectClass){
+			return;
+		}
+		setTimeout(function(){
+			demo.removeClass(effectClass + ' cfx_preview_live');
+			if(target.length){
+				target.removeClass('cfx_target_hit');
+			}
+			void demo[0].offsetWidth;
+			demo.addClass(effectClass + ' cfx_preview_live');
+			if(effectClass.indexOf('cefx_link') !== -1 && target.length){
+				void target[0].offsetWidth;
+				target.addClass('cfx_target_hit');
+			}
+		}, 70 + (index * 90));
+	});
+}
+triggerLinkedMessageEffects = function(context){
+	var scope = context ? $(context) : $(document);
+	scope.find('.bubble.cefx_link, .hunter_private.cefx_link, .target_private.cefx_link').each(function(){
+		var bubble = $(this);
+		if(bubble.attr('data-link-fired') == '1'){
+			return;
+		}
+		bubble.attr('data-link-fired', '1');
+		var holder = bubble.closest('li.chat_log, li.privlog');
+		if(!holder.length){
+			return;
+		}
+		var prev = holder.prevAll('li.chat_log, li.privlog').filter(function(){
+			return $(this).find('.bubble, .hunter_private, .target_private').length > 0;
+		}).first();
+		if(!prev.length){
+			return;
+		}
+		var target = prev.find('.bubble, .hunter_private, .target_private').last();
+		if(!target.length){
+			return;
+		}
+		target.addClass('cfx_target_hit');
+		setTimeout(function(){
+			target.removeClass('cfx_target_hit');
+		}, 760);
+	});
+}
+buyChatEffect = function(effect){
+		effect = parseInt(effect);
+		if(!effect){
+			return false;
+		}
+		$.ajax({
+			url: 'system/action/action_chat_effect.php',
+			type: 'post',
+			cache: false,
+			dataType: 'json',
+			data: {
+				buy_effect: effect,
+			},
+			success: function(response){
+				if(typeof response == 'object' && response.code == 1){
+					callSuccess('Chat effect purchased');
+					refreshEffectsShop();
+				}
+				else if(typeof response == 'object' && response.code == 2){
+					callError(system.noGold);
+				}
+				else if(typeof response == 'object' && response.code == 3){
+					callError('You already own this effect');
+				}
+				else {
+					callError(system.error);
+				}
+			},
+			error: function(){
+				callError(system.error);
+			}
+		});
+	}
+selectChatEffect = function(effect){
+		effect = parseInt(effect);
+		if(isNaN(effect) || effect < 0){
+			return false;
+		}
+		$.ajax({
+			url: 'system/action/action_chat_effect.php',
+			type: 'post',
+			cache: false,
+			dataType: 'json',
+			data: {
+				set_effect: effect,
+			},
+			success: function(response){
+				if(typeof response == 'object' && response.code == 1){
+					callSuccess(system.saved);
+					refreshEffectsShop();
+				}
+				else if(typeof response == 'object' && response.code == 3){
+					callError('Purchase this effect first');
+				}
+				else {
+					callError(system.error);
+				}
+			},
+			error: function(){
+				callError(system.error);
+			}
+		});
+	}
+	buyProfileEffect = function(category, effect){
+		category = (category || '').toString();
+		effect = parseInt(effect);
+		if(category == '' || !effect){
+			return false;
+		}
+		$.ajax({
+			url: 'system/action/action_chat_effect.php',
+			type: 'post',
+			cache: false,
+			dataType: 'json',
+			data: {
+				buy_profile_effect: 1,
+				effect_category: category,
+				effect_id: effect,
+				token: utk,
+				cp: curPage,
+			},
+			success: function(response){
+				if(typeof response == 'object' && response.code == 1){
+					callSuccess('Profile effect purchased');
+					refreshEffectsShop();
+				}
+				else if(typeof response == 'object' && response.code == 2){
+					callError(system.noGold);
+				}
+				else if(typeof response == 'object' && response.code == 3){
+					callError('You already own this effect');
+				}
+				else {
+					callError(system.error);
+				}
+			},
+			error: function(){
+				callError(system.error);
+			}
+		});
+	}
+	selectProfileEffect = function(category, effect){
+		category = (category || '').toString();
+		effect = parseInt(effect);
+		if(category == '' || isNaN(effect) || effect < 0){
+			return false;
+		}
+		$.ajax({
+			url: 'system/action/action_chat_effect.php',
+			type: 'post',
+			cache: false,
+			dataType: 'json',
+			data: {
+				set_profile_effect: 1,
+				effect_category: category,
+				effect_id: effect,
+				token: utk,
+				cp: curPage,
+			},
+			success: function(response){
+				if(typeof response == 'object' && response.code == 1){
+					callSuccess(system.saved);
+					refreshEffectsShop();
+				}
+				else if(typeof response == 'object' && response.code == 3){
+					callError('Purchase this effect first');
+				}
+				else {
+					callError(system.error);
+				}
+			},
+			error: function(){
+				callError(system.error);
+			}
+		});
+	}
 
 // EMOTICON
 
@@ -1454,6 +1810,7 @@ closeRight = function(){
 }
 closeLeft = function(){
 	$('#chat_left_data').html('')
+	$('#public_theme_live_style').remove();
 	$("#chat_left").addClass('left_hide');
 }
 openLeft = function(){
@@ -1777,6 +2134,162 @@ openReport = function(i, t){
 	});
 }
 
+collectReactionTargets = function(scope){
+	var ids = [];
+	var seen = {};
+	$('.msg_react_box[data-scope="' + scope + '"]').each(function(){
+		var id = parseInt($(this).attr('data-target'));
+		if(!id || seen[id]){
+			return;
+		}
+		seen[id] = 1;
+		ids.push(id);
+		if(ids.length >= 60){
+			return false;
+		}
+	});
+	return ids;
+}
+syncVisibleReactions = function(){
+	if(reactionSyncLock === 1){
+		return;
+	}
+	if(!$('.msg_react_box').length){
+		return;
+	}
+	var chatTargets = collectReactionTargets('chat');
+	var privateTargets = collectReactionTargets('private');
+	if(chatTargets.length < 1 && privateTargets.length < 1){
+		return;
+	}
+	reactionSyncLock = 1;
+	$.ajax({
+		url: "system/action/action_reaction_sync.php",
+		type: "post",
+		cache: false,
+		dataType: 'json',
+		data: {
+			chat: chatTargets.join(','),
+			private: privateTargets.join(','),
+		},
+		success: function(response){
+			if(typeof response === 'object' && response.code == 1){
+				if(typeof updateReactionBox === 'function'){
+					if(response.chat && typeof response.chat === 'object'){
+						Object.keys(response.chat).forEach(function(target){
+							updateReactionBox('chat', parseInt(target), response.chat[target]);
+						});
+					}
+					if(response.private && typeof response.private === 'object'){
+						Object.keys(response.private).forEach(function(target){
+							updateReactionBox('private', parseInt(target), response.private[target]);
+						});
+					}
+				}
+			}
+		},
+		complete: function(){
+			reactionSyncLock = 0;
+		}
+	});
+}
+renderReactionEmojiMenu = function(items){
+	var html = '';
+	for(var i = 0; i < items.length; i++){
+		var key = items[i].key || '';
+		var src = items[i].src || key;
+		if(key == '' || src == ''){
+			continue;
+		}
+		html += '<button type="button" class="reaction_menu_item" data-react-key="' + key + '"><img src="' + src + '"/></button>';
+	}
+	$('#reaction_picker_list').html(html);
+}
+closeReactionMenu = function(){
+	$('#reaction_picker_menu').removeClass('show_menu');
+	reactionMenuScope = '';
+	reactionMenuTarget = 0;
+}
+openReactionMenu = function(scope, target){
+	target = parseInt(target);
+	if(!scope || !target){
+		return false;
+	}
+	reactionMenuScope = scope;
+	reactionMenuTarget = target;
+	$('#reaction_picker_menu').addClass('show_menu');
+	if(Array.isArray(reactionEmojiCache) && reactionEmojiCache.length > 0){
+		renderReactionEmojiMenu(reactionEmojiCache);
+		return true;
+	}
+	if(reactionMenuLoading === 1){
+		return true;
+	}
+	reactionMenuLoading = 1;
+	$('#reaction_picker_list').html(largeSpinner);
+	$.ajax({
+		url: "system/action/action_reaction_emoji.php",
+		type: "post",
+		cache: false,
+		dataType: 'json',
+		data: {},
+		success: function(response){
+			if(typeof response === 'object' && response.code == 1 && Array.isArray(response.items)){
+				reactionEmojiCache = response.items;
+				renderReactionEmojiMenu(reactionEmojiCache);
+			}
+			else {
+				$('#reaction_picker_list').html('');
+			}
+		},
+		complete: function(){
+			reactionMenuLoading = 0;
+		}
+	});
+	return true;
+}
+openLogReactionMenu = function(item){
+	var target = parseInt($(item).attr('data'));
+	if(!target){
+		return;
+	}
+	resetLogMenu();
+	openReactionMenu('chat', target);
+}
+reactMessage = function(scope, target, reactKey){
+	target = parseInt(target);
+	reactKey = (reactKey || '').toString();
+	if(!scope || !target || reactKey == ''){
+		return false;
+	}
+	$.ajax({
+		url: "system/action/action_reaction.php",
+		type: "post",
+		cache: false,
+		dataType: 'json',
+		data: {
+			scope: scope,
+			target: target,
+			react_key: reactKey,
+		},
+		success: function(response){
+			if(typeof response == 'object' && response.code == 1){
+				if(typeof updateReactionBox === 'function'){
+					updateReactionBox(scope, target, response.reaction);
+				}
+				closeReactionMenu();
+				setTimeout(syncVisibleReactions, 120);
+			}
+			else {
+				callError(system.error);
+			}
+		},
+		error: function(){
+			callError(system.error);
+		}
+	});
+}
+
 chatActivity = function(){
 	curActive++;
 	isInnactive();
@@ -2032,6 +2545,34 @@ getDiscord = function(){
 			showLeftPanel(response.content, 380, response.title);
 		},
 			error: function(){
+			callError(system.error);
+		}
+	});
+}
+
+getPublicThemeLeft = function(view){
+	var targetView = (view == 'builder') ? 'builder' : 'market';
+	$.ajax({
+		url: "system/panel/public_themes.php",
+		type: "post",
+		cache: false,
+		dataType: "json",
+		data: {},
+		beforeSend: function(){
+			prepareLeft(420);
+		},
+		success: function(response){
+			showLeftPanel(response.content, 420, response.title);
+			setTimeout(function(){
+				if(targetView == 'builder' && typeof showPublicThemeBuilder === 'function'){
+					showPublicThemeBuilder();
+				}
+				else if(typeof showPublicThemeMarket === 'function'){
+					showPublicThemeMarket();
+				}
+			}, 30);
+		},
+		error: function(){
 			callError(system.error);
 		}
 	});
@@ -2985,6 +3526,7 @@ function systemInit() {
 	runModal     = setInterval(checkModal, 1500);
 	badgeUpdate  = setInterval(updateBadge, 120000);
 	chatLog = setInterval(chatReload, speed);
+	setInterval(syncVisibleReactions, 2500);
 
 	userReload();
 	adjustHeight();
@@ -2994,6 +3536,7 @@ function systemInit() {
 	manageOthers();
 	checkModal();
 	chatReload();
+	syncVisibleReactions();
 	leftMenuShow();
 
 	setTimeout(updateBadge, 3000);
@@ -3022,6 +3565,104 @@ $(document).ready(function(){
 	
 	$('#container_show_chat').on('click', '#show_chat .username', function() {
 		emoticon('content', $(this).text());
+	});
+
+	$(document).on('click', '.msg_react_btn', function(event){
+		event.preventDefault();
+		event.stopPropagation();
+		var scope = $(this).attr('data-scope');
+		var target = parseInt($(this).attr('data-target'));
+		var react = ($(this).attr('data-react-key') || '').toString();
+		if(!scope || !target || react == ''){
+			return false;
+		}
+		reactMessage(scope, target, react);
+	});
+
+	$(document).on('click', '.msg_react_more', function(event){
+		event.preventDefault();
+		event.stopPropagation();
+		var scope = $(this).attr('data-scope');
+		var target = parseInt($(this).attr('data-target'));
+		if(!scope || !target){
+			return false;
+		}
+		openReactionMenu(scope, target);
+	});
+
+	$(document).on('click', '.reaction_menu_item', function(event){
+		event.preventDefault();
+		event.stopPropagation();
+		if(!reactionMenuScope || !reactionMenuTarget){
+			return false;
+		}
+		var react = ($(this).attr('data-react-key') || '').toString();
+		if(react == ''){
+			return false;
+		}
+		reactMessage(reactionMenuScope, reactionMenuTarget, react);
+	});
+
+	$(document).on('click', '#reaction_picker_close', function(event){
+		event.preventDefault();
+		event.stopPropagation();
+		closeReactionMenu();
+	});
+
+	$(document).on('click', function(event){
+		if(!$(event.target).closest('#reaction_picker_menu, .msg_react_more, .log_react').length){
+			closeReactionMenu();
+		}
+		if(!$(event.target).closest('#slash_command_menu, #content').length){
+			hideSlashMenu();
+		}
+	});
+
+	$(document).on('mousedown', '.slash_command_item', function(event){
+		event.preventDefault();
+		event.stopPropagation();
+		selectSlashCommand($(this).attr('data-index'));
+	});
+
+	$(document).on('input focus', '#content', function(){
+		updateSlashMenu($(this).val());
+	});
+
+	$(document).on('keydown', '#content', function(event){
+		if(!$('#slash_command_menu:visible').length || slashCommandMatches.length < 1){
+			return;
+		}
+		if(event.key === 'ArrowDown'){
+			event.preventDefault();
+			moveSlashSelection(1);
+		}
+		else if(event.key === 'ArrowUp'){
+			event.preventDefault();
+			moveSlashSelection(-1);
+		}
+		else if(event.key === 'Tab' || event.key === 'Enter'){
+			event.preventDefault();
+			selectSlashCommand(slashCommandActive);
+		}
+		else if(event.key === 'Escape'){
+			event.preventDefault();
+			hideSlashMenu();
+		}
+	});
+
+	$(document).on('animationend', '.bubble[class*="cefx_"], .hunter_private[class*="cefx_"], .target_private[class*="cefx_"], .chat_effect_demo[class*="cefx_"]', function(event){
+		var anim = '';
+		if(event.originalEvent && event.originalEvent.animationName){
+			anim = event.originalEvent.animationName;
+		}
+		if(anim != '' && !/^(cfx_pop|cfx_lift|cfx_swing|cfx_pulse|cfx_tilt|cfx_jelly|cfx_bloom|cfx_rocket|cfx_wave|cfx_slam|cfx_flip|cfx_volt|cfx_rift|cfx_hammer|cfx_comet|cfx_prism|cfx_duel)$/.test(anim)){
+			return;
+		}
+		var matches = this.className.match(/cefx_\d+/g);
+		if(matches && matches.length){
+			$(this).removeClass(matches.join(' '));
+		}
+		$(this).removeClass('cfx_preview_live cefx_link');
 	});
 	
 	$(document).on('click', '.ch_logs .emocc', function(){
@@ -3056,6 +3697,7 @@ $(document).ready(function(){
 	});
 	
 	$('#main_input').submit(function(event){
+		hideSlashMenu();
 		var message = $('#content').val();
 		if(message == ''){
 			event.preventDefault();
@@ -3248,6 +3890,89 @@ $(document).ready(function(){
 			dragger = 1;
 		}
 	});
+
+// Handle goofy events delivered by the poll
+handleGoofyEvents = function(events){
+	if(!Array.isArray(events) || events.length === 0) return;
+	for(var i=0;i<events.length;i++){
+		var ev = events[i];
+		if(!ev.type) continue;
+		switch(ev.type){
+			case 'announce':
+				showGoofyAnnouncement(ev.data, ev.drag);
+				break;
+			case 'jumpscare':
+				showGoofyJumpscare(ev.data, ev.drag);
+				break;
+			case 'audio':
+				playGoofyAudio(ev.data);
+				break;
+			case 'goofy':
+				triggerGoofyBurst(ev.data);
+				break;
+			default:
+				break;
+		}
+	}
+}
+
+showGoofyAnnouncement = function(data, drag){
+	var text = data.text || '';
+	$('#goofy_event_text').text(text);
+	$('#goofy_event_box').show();
+	if(drag && $("#goofy_event_box").draggable){
+		$("#goofy_event_box").draggable({ handle: '#goofy_event_handle', containment: 'document' });
+	}
+	setTimeout(function(){ $('#goofy_event_box').fadeOut(); }, 10000);
+}
+
+showGoofyJumpscare = function(data, drag){
+	var img = data.image || '';
+	var text = data.text || '';
+	var audio = data.audio || '';
+	if(img !== ''){
+		$('#goofy_jumpscare_img').attr('src', img);
+		$('#goofy_jumpscare_text').text(text);
+		$('#goofy_jumpscare').show();
+		if(drag && $("#goofy_jumpscare").draggable){
+			$("#goofy_jumpscare").draggable({ containment: 'document' });
+		}
+		if(audio !== ''){
+			$('#goofy_audio_player').attr('src', audio);
+			$('#goofy_audio_player')[0].play();
+		}
+		setTimeout(function(){ $('#goofy_jumpscare').fadeOut(); }, 8000);
+	}
+}
+
+playGoofyAudio = function(data){
+	var audio = data.audio || '';
+	if(audio !== ''){
+		$('#goofy_audio_player').attr('src', audio);
+		try{ $('#goofy_audio_player')[0].play(); }catch(e){}
+	}
+}
+
+triggerGoofyBurst = function(data){
+	var flags = data.flags || {};
+	if(flags.effects){
+		// spawn a few random chat FX on the screen
+		for(var k=0;k<6;k++){
+			var cls = 'cefx_' + (Math.floor(Math.random()*16)+1);
+			var $b = $('<div class="goofy_fx_demo '+cls+'" style="position:fixed;left:'+ (20+Math.random()*60) +'%;top:'+ (20+Math.random()*60) +'%;z-index:99999;width:120px;height:40px;background:#fff;border-radius:8px;opacity:.95"></div>');
+			$('body').append($b);
+			(function(el){ setTimeout(function(){ $(el).remove(); }, 2500); })( $b );
+		}
+	}
+	if(flags.shake){
+		$('body').addClass('goofy_shake');
+		setTimeout(function(){ $('body').removeClass('goofy_shake'); }, 1500);
+	}
+	if(flags.spin){
+		$('.glob_av, .avatar, .avatar_preview, .glob_av_big').addClass('goofy_spin');
+		setTimeout(function(){ $('.glob_av, .avatar, .avatar_preview, .glob_av_big').removeClass('goofy_spin'); }, 3500);
+	}
+}
 	
 	$('#show_chat ul').scroll(function() {
 		var s = $('#show_chat ul').scrollTop();

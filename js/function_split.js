@@ -310,6 +310,10 @@ hideModal = function(){
 hideOver = function(){
 	$('#over_modal_content, #over_emodal_content').html('');
 	$('#over_modal, #over_emodal').hide();
+	$('#public_theme_live_style').remove();
+	$('#over_modal').removeClass('effects_modal_backdrop');
+	$('#over_modal_in').removeClass('effects_modal_shell');
+	$('#over_modal_content').removeClass('effects_modal_content_shell');
 	if(!$('#small_modal:visible').length && !$('#large_modal:visible').length){
 		onScroll();
 	}

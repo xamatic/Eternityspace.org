@@ -96,6 +96,11 @@ if(isset($_POST['last'], $_POST['caction'], $_POST['fload'], $_POST['priv'], $_P
 	if($setting['curset'] > $curset){
 		$d['curset'] = reloadSettings();
 	}
+
+	$goofy_events = getPendingGoofyEvents($data, $data['user_roomid']);
+	if(!empty($goofy_events)){
+		$d['gevents'] = $goofy_events;
+	}
 	
 	// warning
 	if(isWarned($data)){

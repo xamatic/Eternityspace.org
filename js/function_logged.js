@@ -581,6 +581,392 @@ getDisplaySetting = function(){
 			}
 	});
 }
+getPublicThemeHub = function(){
+	if(typeof getPublicThemeLeft === 'function'){
+		getPublicThemeLeft('market');
+		return;
+	}
+	$.post('system/box/public_theme_hub.php', {
+		}, function(response) {
+			if(response == 0 || response == ''){
+				callError(system.error);
+				return;
+			}
+			overModal(response, 980);
+			setTimeout(function(){
+				initPublicThemeBuilder();
+			}, 40);
+	});
+}
+showPublicThemeMarket = function(){
+	$('#public_theme_view_builder').addClass('fhide');
+	$('#public_theme_view_market').removeClass('fhide');
+	$('#public_theme_nav_builder').removeClass('theme_btn active').addClass('default_btn');
+	$('#public_theme_nav_market').removeClass('default_btn').addClass('theme_btn active');
+}
+showPublicThemeBuilder = function(){
+	if(!$('#public_theme_view_builder').length){
+		return;
+	}
+	$('#public_theme_view_market').addClass('fhide');
+	$('#public_theme_view_builder').removeClass('fhide');
+	$('#public_theme_nav_market').removeClass('theme_btn active').addClass('default_btn');
+	$('#public_theme_nav_builder').removeClass('default_btn').addClass('theme_btn active');
+	setTimeout(function(){
+		initPublicThemeBuilder();
+	}, 20);
+}
+publicThemeIsLocked = function(){
+	if(!$('#public_theme_builder').length){
+		return false;
+	}
+	if($('#public_theme_builder').attr('data-locked') == '1'){
+		return true;
+	}
+	return false;
+}
+publicThemeColor = function(value, fallback){
+	if(/^#[0-9a-f]{6}$/i.test(String(value))){
+		return String(value).toUpperCase();
+	}
+	return fallback;
+}
+publicThemeClamp = function(value, min, max, fallback, precision){
+	var num = parseFloat(value);
+	if(isNaN(num)){
+		num = fallback;
+	}
+	if(num < min){
+		num = min;
+	}
+	if(num > max){
+		num = max;
+	}
+	if(precision <= 0){
+		return Math.round(num);
+	}
+	var pow = Math.pow(10, precision);
+	return Math.round(num * pow) / pow;
+}
+publicThemeHexToRgba = function(hex, alpha){
+	hex = publicThemeColor(hex, '#FFFFFF').replace('#', '');
+	var r = parseInt(hex.substring(0, 2), 16);
+	var g = parseInt(hex.substring(2, 4), 16);
+	var b = parseInt(hex.substring(4, 6), 16);
+	alpha = publicThemeClamp(alpha, 0, 1, 1, 2);
+	return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+publicThemeCssSafe = function(css){
+	css = String(css || '');
+	css = css.replace(/<\/?(script|style)/gi, '');
+	css = css.replace(/[<>]/g, '');
+	if(css.length > 6000){
+		css = css.substring(0, 6000);
+	}
+	return css;
+}
+collectPublicThemeData = function(){
+	var themeName = $.trim($('#public_theme_name').val());
+	if(themeName.length > 32){
+		themeName = themeName.substring(0, 32);
+	}
+	if(themeName == ''){
+		themeName = 'My Public Theme';
+	}
+	return {
+		theme_name: themeName,
+		header_bg: publicThemeColor($('#public_theme_header_bg').val(), '#111827'),
+		header_text: publicThemeColor($('#public_theme_header_text').val(), '#FFFFFF'),
+		chat_bg: publicThemeColor($('#public_theme_chat_bg').val(), '#0F172A'),
+		chat_text: publicThemeColor($('#public_theme_chat_text').val(), '#E2E8F0'),
+		bubble_bg: publicThemeColor($('#public_theme_bubble_bg').val(), '#1E293B'),
+		accent: publicThemeColor($('#public_theme_accent').val(), '#38BDF8'),
+		default_btn: publicThemeColor($('#public_theme_default_btn').val(), '#334155'),
+		panel_opacity: publicThemeClamp($('#public_theme_panel_opacity').val(), 0.30, 1.00, 0.85, 2),
+		panel_blur: publicThemeClamp($('#public_theme_panel_blur').val(), 0, 24, 8, 0),
+		theme_background: $.trim($('#public_theme_bg').val()),
+		theme_custom_css: publicThemeCssSafe($('#public_theme_custom_css').val())
+	};
+}
+buildPublicThemeLiveCss = function(theme){
+	var panelBg = publicThemeHexToRgba(theme.chat_bg, theme.panel_opacity);
+	var bubbleSoft = publicThemeHexToRgba(theme.bubble_bg, Math.min(1, parseFloat(theme.panel_opacity) + 0.1));
+	var lineSoft = publicThemeHexToRgba(theme.header_text, 0.14);
+	var hoverSoft = publicThemeHexToRgba(theme.header_text, 0.10);
+	var inputBg = publicThemeHexToRgba(theme.header_text, 0.06);
+	var bg = String(theme.theme_background || '').replace(/'/g, '%27');
+	var css = '';
+	css += '@import url("css/themes/Lite/Lite.css' + bbfv + '");';
+	css += 'a{color:' + theme.accent + ';}';
+	css += 'body{background:' + theme.chat_bg + ';color:' + theme.chat_text + ';';
+	if(bg != ''){
+		css += "background-image:url('" + bg + "');background-size:cover;background-position:center center;background-attachment:fixed;";
+	}
+	css += '}';
+	css += 'input,textarea,.post_input_container{background:' + inputBg + ';border:1px solid ' + lineSoft + ' !important;color:' + theme.chat_text + ';}';
+	css += '.setdef,.default_color,.user{color:' + theme.chat_text + ';}';
+	css += '.bhead,.bsidebar,.modal_top,.pro_top,.bfoot,.foot,.back_pmenu,.back_ptop{background:' + theme.header_bg + ';color:' + theme.header_text + ';}';
+	css += '.theme_color,.menui,.subi{color:' + theme.accent + ';}';
+	css += '.theme_btn,.back_theme,.my_notice{background:' + theme.accent + ';color:' + theme.header_text + ';}';
+	css += '.default_btn,.back_default,.defaultd_btn,.send_btn{background:' + theme.default_btn + ';color:' + theme.header_text + ';}';
+	css += '.backglob,.back_chat,.back_priv,.back_panel,.back_menu,.back_box,.back_input,.back_modal,.page_element,.back_quote{background:' + panelBg + ';color:' + theme.chat_text + ';}';
+	css += '.mbubble,.hunter_private,.targ_quote,.reply_item,.cquote{background:' + bubbleSoft + ';color:' + theme.chat_text + ';}';
+	css += '.my_log,.target_private,.hunt_quote{background:' + theme.bubble_bg + ';color:' + theme.header_text + ';}';
+	css += '.chat_system,.sub_text,.sub_date,.input_item{color:' + lineSoft + ';}';
+	css += '.bback,.bbackhover,.modal_mback{background:' + inputBg + ';}';
+	css += '.bhover:hover,.bhoverr:hover,.bbackhover:hover,.blisting:hover,.submenu:hover,.bmenu:hover,.bpmenu:hover,.bsub:hover{background:' + hoverSoft + ';}';
+	css += '.bborder,.tborder,.lborder,.rborder,.fborder,.blisting,.blist,.float_top,.float_ctop,.modal_mborder{border-color:' + lineSoft + ';}';
+	css += '.bshadow,.page_element,.float_menu,.btnshadow,.pboxed,.tab_menu{box-shadow:0 8px 24px rgba(0,0,0,0.35);}';
+	css += '.modal_back{background-color:rgba(0,0,0,0.55);}';
+	if(parseInt(theme.panel_blur, 10) > 0){
+		css += '.backglob,.back_chat,.back_priv,.back_panel,.back_menu,.back_box,.back_input,.back_modal,.page_element,.back_quote{backdrop-filter:blur(' + parseInt(theme.panel_blur, 10) + 'px);-webkit-backdrop-filter:blur(' + parseInt(theme.panel_blur, 10) + 'px);}';
+	}
+	if(theme.theme_custom_css != ''){
+		css += theme.theme_custom_css;
+	}
+	return css;
+}
+applyPublicThemeLivePreview = function(){
+	if(!$('#public_theme_builder').length){
+		return;
+	}
+	var theme = collectPublicThemeData();
+	var styleTag = $('#public_theme_live_style');
+	if(!styleTag.length){
+		$('head').append('<style id="public_theme_live_style"></style>');
+		styleTag = $('#public_theme_live_style');
+	}
+	styleTag.text(buildPublicThemeLiveCss(theme));
+
+	$('#public_theme_panel_opacity_value').text(theme.panel_opacity);
+	$('#public_theme_panel_blur_value').text(theme.panel_blur + 'px');
+	$('#public_theme_live_name').text(theme.theme_name);
+	$('#public_theme_bg_state').text(theme.theme_background != '' ? 'Background ready' : 'No background uploaded');
+
+	var preview = $('#public_theme_live_preview');
+	if(preview.length){
+		preview.css('--pt-header-bg', theme.header_bg);
+		preview.css('--pt-header-text', theme.header_text);
+		preview.css('--pt-chat-bg', theme.chat_bg);
+		preview.css('--pt-chat-text', theme.chat_text);
+		preview.css('--pt-bubble-bg', theme.bubble_bg);
+		preview.css('--pt-accent', theme.accent);
+		preview.css('--pt-default', theme.default_btn);
+		preview.css('--pt-opacity', theme.panel_opacity);
+		preview.css('--pt-blur', parseInt(theme.panel_blur, 10) + 'px');
+		if(theme.theme_background != ''){
+			preview.css('--pt-bg-url', "url('" + String(theme.theme_background).replace(/'/g, '%27') + "')");
+		}
+		else {
+			preview.css('--pt-bg-url', 'none');
+		}
+	}
+}
+initPublicThemeBuilder = function(){
+	if(!$('#public_theme_builder').length){
+		return;
+	}
+	applyPublicThemeLivePreview();
+}
+savePublicThemeDraft = function(){
+	if(publicThemeIsLocked()){
+		callError('Approved themes are immutable.');
+		return;
+	}
+	var payload = collectPublicThemeData();
+	payload.save_public_theme = 1;
+	$.post('system/action/action_public_theme.php', payload, function(response){
+		if(response.code == 1){
+			callSuccess('Draft saved.');
+		}
+		else if(response.code == 2){
+			callError('Theme name must be at least 3 characters.');
+		}
+		else if(response.code == 4){
+			callError('VIP or higher rank is required to publish.');
+		}
+		else if(response.code == 5){
+			callError('Approved themes are immutable.');
+		}
+		else {
+			callError(system.error);
+		}
+	}, 'json');
+}
+submitPublicTheme = function(){
+	if(publicThemeIsLocked()){
+		callError('Approved themes are immutable.');
+		return;
+	}
+	var payload = collectPublicThemeData();
+	payload.submit_public_theme = 1;
+	$.post('system/action/action_public_theme.php', payload, function(response){
+		if(response.code == 1){
+			callSuccess('Theme submitted for moderation.');
+			if(typeof getPublicThemeLeft === 'function'){
+				getPublicThemeLeft('market');
+			}
+			else {
+				getPublicThemeHub();
+			}
+		}
+		else if(response.code == 2){
+			callError('Theme name must be at least 3 characters.');
+		}
+		else if(response.code == 4){
+			callError('VIP or higher rank is required to publish.');
+		}
+		else if(response.code == 5){
+			callError('Approved themes are immutable.');
+		}
+		else {
+			callError(system.error);
+		}
+	}, 'json');
+}
+uploadPublicThemeBackground = function(){
+	if(publicThemeIsLocked()){
+		callError('Approved themes are immutable.');
+		return;
+	}
+	var input = $('#public_theme_bg_file')[0];
+	if(!input || !input.files || !input.files.length){
+		callError('Select an image file first.');
+		return;
+	}
+	var fd = new FormData();
+	fd.append('upload_public_theme_bg', 1);
+	fd.append('token', utk);
+	fd.append('cp', curPage);
+	fd.append('theme_background_file', input.files[0]);
+	$.ajax({
+		url: 'system/action/action_public_theme.php',
+		type: 'POST',
+		data: fd,
+		dataType: 'json',
+		processData: false,
+		contentType: false,
+		success: function(response){
+			if(response.code == 1){
+				$('#public_theme_bg').val(response.background);
+				$('#public_theme_bg_file').val('');
+				applyPublicThemeLivePreview();
+				callSuccess('Background uploaded.');
+			}
+			else if(response.code == 3){
+				callError('Invalid image or file too large.');
+			}
+			else if(response.code == 4){
+				callError('VIP or higher rank is required to publish.');
+			}
+			else {
+				callError(system.error);
+			}
+		},
+		error: function(){
+			callError(system.error);
+		}
+	});
+}
+removePublicThemeBackground = function(){
+	if(publicThemeIsLocked()){
+		callError('Approved themes are immutable.');
+		return;
+	}
+	$('#public_theme_bg').val('');
+	$('#public_theme_bg_file').val('');
+	applyPublicThemeLivePreview();
+}
+applyPublicTheme = function(themeId){
+	$.post('system/action/action_public_theme.php', {
+		apply_public_theme: 1,
+		theme_id: themeId
+	}, function(response){
+		if(response.code == 1){
+			var href = "css/themes/" + response.theme + "/" + response.theme + ".css" + bbfv;
+			href += (href.indexOf('?') > -1 ? '&' : '?') + 'ptv=' + (response.tv ? response.tv : new Date().getTime());
+			$("#actual_theme").attr("href", href);
+			$('#main_logo').attr('src', response.logo);
+			callSuccess('Theme applied.');
+		}
+		else if(response.code == 2){
+			callError('Theme not available.');
+		}
+		else {
+			callError(system.error);
+		}
+	}, 'json');
+}
+moderatePublicTheme = function(themeId, action){
+	var payload = {
+		moderate_public_theme: 1,
+		theme_id: themeId,
+		theme_action: action,
+	};
+	if(action == 'reject'){
+		var note = $.trim($('#public_theme_mod_note_' + themeId).val());
+		if(note == ''){
+			callError('Add a rejection reason.');
+			return;
+		}
+		payload.theme_note = note;
+	}
+	$.post('system/action/action_public_theme.php', payload, function(response){
+		if(response.code == 1){
+			callSuccess(action == 'approve' ? 'Theme approved and published.' : 'Theme rejected.');
+			if(typeof getPublicThemeLeft === 'function'){
+				getPublicThemeLeft('market');
+			}
+			else {
+				getPublicThemeHub();
+			}
+		}
+		else if(response.code == 3){
+			callError('A rejection reason is required.');
+		}
+		else if(response.code == 4){
+			callError('Permission denied for moderation.');
+		}
+		else {
+			callError(system.error);
+		}
+	}, 'json');
+}
+deletePublicTheme = function(themeId){
+	themeId = parseInt(themeId, 10);
+	if(!themeId){
+		return;
+	}
+	if(!confirm('Delete this public theme now?')){
+		return;
+	}
+	$.post('system/action/action_public_theme.php', {
+		delete_public_theme: 1,
+		theme_id: themeId,
+	}, function(response){
+		if(response.code == 1){
+			callSuccess('Theme deleted.');
+			if(typeof getPublicThemeLeft === 'function'){
+				getPublicThemeLeft('market');
+			}
+			else {
+				getPublicThemeHub();
+			}
+		}
+		else if(response.code == 4){
+			callError('Permission denied for delete.');
+		}
+		else {
+			callError(system.error);
+		}
+	}, 'json');
+}
+$(document).on('input change', '#public_theme_builder input, #public_theme_builder textarea', function(){
+	if($(this).attr('id') == 'public_theme_bg_file'){
+		return;
+	}
+	applyPublicThemeLivePreview();
+});
 getActions = function(id){
 	$.post('system/box/action_main.php', {
 		id: id,
@@ -944,6 +1330,217 @@ getTextOptions = function(){
 	$.post('system/box/chat_text.php', {
 		}, function(response) {
 			overModal(response);
+	});
+}
+getAnimationSettings = function(){
+	$.post('system/box/animation_settings.php', {
+		}, function(response) {
+			overModal(response, 420);
+	});
+}
+getGoofyAdminPanel = function(){
+	$.post('system/box/goofy_admin.php', {
+		}, function(response) {
+			if(response == 0){
+				callError(system.error);
+				return;
+			}
+			overModal(response, 560);
+	});
+}
+
+saveAnimationSettings = function(){
+	var master = $('#anim_master').val();
+	var chatfx = $('#anim_chatfx').val();
+	var goofy = $('#anim_goofy').val();
+	var overlay = $('#anim_overlay').val();
+	$.post('system/action/action_animation.php', {
+		token: utk,
+		cp: curPage,
+		save_animation: 1,
+		anim_master: master,
+		anim_chatfx: chatfx,
+		anim_goofy: goofy,
+		anim_overlay: overlay,
+	}, function(response){
+		if(response.code == 1 && response.config){
+			try{
+				animMaster = response.config.master;
+				animChatfx = response.config.chatfx;
+				animGoofy = response.config.goofy;
+				animOverlay = response.config.overlay;
+			}catch(e){}
+			hideOver();
+			callSuccess(system.actionComplete);
+		}
+		else {
+			callError(system.error);
+		}
+	}, 'json');
+}
+
+// goofy sends
+sendGoofyAnnouncement = function(){
+	var text = $('#goofy_announce_text').val();
+	var dur = $('#goofy_announce_duration').val();
+	var drag = $('#goofy_announce_drag').val();
+	var mode = $('#goofy_announce_target_mode').val();
+	var targets = $('#goofy_announce_targets').val();
+	$.ajax({
+		url: 'system/action/action_goofy.php',
+		type: 'POST',
+		dataType: 'json',
+		data: {
+			token: utk,
+			cp: curPage,
+			send_announce: 1,
+			announce_text: text,
+			announce_duration: dur,
+			announce_drag: (drag==1?1:0),
+			target_mode: mode,
+			targets: targets,
+			room: user_room,
+		},
+		success: function(response){
+			if(response.code == 1){
+				callSuccess(system.actionComplete);
+				hideOver();
+			}
+			else if(response.code == 4){
+				callError('Permission denied for this action.');
+			}
+			else if(response.code == 3){
+				callError('Add valid target usernames for "some users" mode.');
+			}
+			else {
+				callError(system.error);
+			}
+		},
+		error: function(){
+			callError(system.error);
+		}
+	});
+}
+
+sendGoofyJump = function(){
+	var dur = $('#goofy_jump_duration').val();
+	var drag = $('#goofy_jump_drag').val();
+	var mode = $('#goofy_jump_target_mode').val();
+	var targets = $('#goofy_jump_targets').val();
+	var text = $('#goofy_jump_text').val();
+	var fd = new FormData();
+	fd.append('send_jump', 1);
+	fd.append('token', utk);
+	fd.append('cp', curPage);
+	fd.append('jump_duration', dur);
+	fd.append('jump_drag', (drag==1?1:0));
+	fd.append('target_mode', mode);
+	fd.append('targets', targets);
+	fd.append('jump_text', text);
+	var img = $('#goofy_jump_image')[0];
+	if(img && img.files && img.files.length){ fd.append('jump_image', img.files[0]); }
+	var aud = $('#goofy_jump_audio')[0];
+	if(aud && aud.files && aud.files.length){ fd.append('jump_audio', aud.files[0]); }
+	fd.append('room', user_room);
+	$.ajax({
+		url: 'system/action/action_goofy.php',
+		type: 'POST',
+		data: fd,
+		dataType: 'json',
+		processData: false,
+		contentType: false,
+		success: function(response){
+			if(response.code == 1){ callSuccess(system.actionComplete); hideOver(); }
+			else if(response.code == 4){ callError('Permission denied for this action.'); }
+			else if(response.code == 3){ callError('Add valid target usernames for "some users" mode.'); }
+			else { callError(system.error); }
+		},
+		error: function(){
+			callError(system.error);
+		}
+	});
+}
+
+sendGoofyAudio = function(){
+	var mode = $('#goofy_audio_target_mode').val();
+	var targets = $('#goofy_audio_targets').val();
+	var fd = new FormData();
+	fd.append('send_audio', 1);
+	fd.append('token', utk);
+	fd.append('cp', curPage);
+	fd.append('target_mode', mode);
+	fd.append('targets', targets);
+	var f = $('#goofy_audio_file')[0];
+	if(f && f.files && f.files.length){ fd.append('audio_file', f.files[0]); }
+	fd.append('room', user_room);
+	$.ajax({
+		url: 'system/action/action_goofy.php',
+		type: 'POST',
+		data: fd,
+		dataType: 'json',
+		processData: false,
+		contentType: false,
+		success: function(response){
+			if(response.code == 1){ callSuccess(system.actionComplete); hideOver(); }
+			else if(response.code == 4){ callError('Permission denied for this action.'); }
+			else if(response.code == 3){ callError('Add valid target usernames for "some users" mode.'); }
+			else { callError(system.error); }
+		},
+		error: function(){
+			callError(system.error);
+		}
+	});
+}
+
+sendGoofyRandom = function(){
+	var dur = $('#goofy_random_duration').val();
+	var mode = $('#goofy_random_target_mode').val();
+	var targets = $('#goofy_random_targets').val();
+	var eff = $('#goofy_random_effect').is(':checked') ? 1 : 0;
+	var shake = $('#goofy_random_shake').is(':checked') ? 1 : 0;
+	var spin = $('#goofy_random_spin').is(':checked') ? 1 : 0;
+	$.ajax({
+		url: 'system/action/action_goofy.php',
+		type: 'POST',
+		dataType: 'json',
+		data: {
+			token: utk,
+			cp: curPage,
+			send_random: 1,
+			random_duration: dur,
+			random_effect: eff,
+			random_shake: shake,
+			random_spin: spin,
+			target_mode: mode,
+			targets: targets,
+			room: user_room,
+		},
+		success: function(response){
+			if(response.code == 1){ callSuccess(system.actionComplete); hideOver(); }
+			else if(response.code == 4){ callError('Permission denied for this action.'); }
+			else if(response.code == 3){ callError('Add valid target usernames for "some users" mode.'); }
+			else { callError(system.error); }
+		},
+		error: function(){
+			callError(system.error);
+		}
+	});
+}
+getEffectsShop = function(){
+	$.post('system/box/effects.php', {
+		}, function(response) {
+			overModal(response, 980);
+			$('#over_modal').addClass('effects_modal_backdrop');
+			$('#over_modal_in').addClass('effects_modal_shell');
+			$('#over_modal_content').addClass('effects_modal_content_shell');
+			if(typeof initEffectsTabs === 'function'){
+				initEffectsTabs();
+			}
+			if(typeof initEffectsPreview === 'function'){
+				setTimeout(function(){
+					initEffectsPreview();
+				}, 40);
+			}
 	});
 }
 getSoundSetting = function(){

@@ -42,6 +42,10 @@ if(!isMember($data)){
 			<?php echo onOff($data['user_bubble']); ?>
 		</select>
 	</div>
+	<div class="setting_element">
+		<p class="label">Effects Shop</p>
+		<button onclick="hideOver(); getEffectsShop();" class="small_button theme_btn">Open Effects Menu</button>
+	</div>
 	<div class="setting_element <?php echo $friend; ?>">
 		<p class="label"><?php echo $lang['friend_request']; ?></p>
 		<select id="set_ufriend">

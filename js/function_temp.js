@@ -40,6 +40,12 @@ bubbleColor = t => {
 		return '';
 	}
 }
+messageEffectClass = t => {
+	if(t !== null && typeof t === 'object' && typeof t.effect === 'string'){
+		return t.effect;
+	}
+	return '';
+}
 myNotice = data => {
     let message = data.log_content;
     if (data.user_id !== user_id && data.log_sys == 0) {
@@ -49,6 +55,119 @@ myNotice = data => {
         });
     }
     return message;
+}
+
+const defaultReactionChoices = () => {
+	return [
+		{ key: 'default_images/reaction/like.svg', src: 'default_images/reaction/like.svg' },
+		{ key: 'default_images/reaction/dislike.svg', src: 'default_images/reaction/dislike.svg' },
+		{ key: 'default_images/reaction/love.svg', src: 'default_images/reaction/love.svg' },
+		{ key: 'default_images/reaction/funny.svg', src: 'default_images/reaction/funny.svg' },
+	];
+}
+normalizeReaction = r => {
+	const reaction = {
+		mine: '',
+		items: [],
+		total: 0,
+	};
+	if(r === null || typeof r !== 'object'){
+		return reaction;
+	}
+	if(typeof r.mine === 'string'){
+		reaction.mine = r.mine;
+	}
+	else if(typeof r.mine === 'number' && r.mine > 0){
+		const defaults = defaultReactionChoices();
+		if(defaults[(r.mine - 1)]){
+			reaction.mine = defaults[(r.mine - 1)].key;
+		}
+	}
+	if(Array.isArray(r.items)){
+		for(let i = 0; i < r.items.length; i++){
+			const item = r.items[i];
+			if(item === null || typeof item !== 'object'){
+				continue;
+			}
+			const key = typeof item.key === 'string' ? item.key : '';
+			const src = typeof item.src === 'string' && item.src !== '' ? item.src : key;
+			const count = parseInt(item.count) || 0;
+			if(key === '' || count < 1){
+				continue;
+			}
+			reaction.items.push({ key: key, src: src, count: count });
+			reaction.total += count;
+		}
+	}
+	if(reaction.items.length === 0){
+		const defaults = defaultReactionChoices();
+		const legacy = [
+			{ count: parseInt(r.like) || 0, index: 0 },
+			{ count: parseInt(r.dislike) || 0, index: 1 },
+			{ count: parseInt(r.love) || 0, index: 2 },
+			{ count: parseInt(r.funny) || 0, index: 3 },
+		];
+		for(let i = 0; i < legacy.length; i++){
+			if(legacy[i].count < 1){
+				continue;
+			}
+			const pick = defaults[legacy[i].index];
+			reaction.items.push({ key: pick.key, src: pick.src, count: legacy[i].count });
+			reaction.total += legacy[i].count;
+		}
+	}
+	reaction.items.sort(function(a, b){
+		return (b.count || 0) - (a.count || 0);
+	});
+	if(reaction.total < 1){
+		reaction.total = reaction.items.reduce(function(sum, item){
+			return sum + (parseInt(item.count) || 0);
+		}, 0);
+	}
+	return reaction;
+}
+reactionSummaryTemplate = r => {
+	const reaction = normalizeReaction(r);
+	if(reaction.total < 1 || reaction.items.length < 1){
+		return '';
+	}
+	let summary = '';
+	const show = Math.min(3, reaction.items.length);
+	for(let i = 0; i < show; i++){
+		summary += `<img class="msg_react_icon" src="${reaction.items[i].src}"/>`;
+	}
+	return `<span class="msg_react_count">${summary}<span class="msg_react_total">${reaction.total}</span></span>`;
+}
+reactionPickerTemplate = (scope, id, r) => {
+	const reaction = normalizeReaction(r);
+	const list = defaultReactionChoices();
+	let picker = '';
+	for(let i = 0; i < list.length; i++){
+		const active = reaction.mine === list[i].key ? ' active' : '';
+		picker += `<button type="button" class="msg_react_btn${active}" data-scope="${scope}" data-target="${id}" data-react-key="${list[i].key}"><img src="${list[i].src}"/></button>`;
+	}
+	picker += `<button type="button" class="msg_react_more" data-scope="${scope}" data-target="${id}"><i class="fa-regular fa-face-smile"></i><span>+</span></button>`;
+	return picker;
+}
+messageReactionTemplate = (scope, id, r) => {
+	const reaction = normalizeReaction(r);
+	const hasReaction = reaction.total > 0 ? ' has_reaction' : '';
+	return `
+		<div class="msg_react_box" data-scope="${scope}" data-target="${id}">
+			<div class="msg_react_picker">${reactionPickerTemplate(scope, id, reaction)}</div>
+			<div class="msg_react_summary${hasReaction}">${reactionSummaryTemplate(reaction)}</div>
+		</div>
+	`;
+}
+updateReactionBox = (scope, id, r) => {
+	const reaction = normalizeReaction(r);
+	const box = `.msg_react_box[data-scope="${scope}"][data-target="${id}"]`;
+	$(box).find('.msg_react_summary').html(reactionSummaryTemplate(reaction));
+	$(box).find('.msg_react_summary').toggleClass('has_reaction', reaction.total > 0);
+	$(box).find('.msg_react_btn').removeClass('active');
+	if(reaction.mine !== ''){
+		$(box).find(`.msg_react_btn[data-react-key="${reaction.mine}"]`).addClass('active');
+	}
 }
 
 // CHAT LOGS
@@ -85,8 +204,9 @@ chatLogTemplate = t => {
 				<div class="log_content"  data-id="${t.log_id}" data-user="${t.user_id}" data-bot="${t.user_bot}">
 					${quoted}
 					<div class="chat_message tpad5">
-						<div class="mbubble bubble ${bubbleColor(t)}">${t.log_content}</div>
+						<div class="mbubble bubble ${bubbleColor(t)} ${messageEffectClass(t)}">${t.log_content}</div>
 					</div>
+					${messageReactionTemplate('chat', t.log_id, t.reaction)}
 				</div>
 			</div>
 		</li>
@@ -169,7 +289,7 @@ hunterPrivateTemplate = t => {
 				<div class="priwrap">
 					<div class="privcont">
 						<div class="privopt sub_priv"></div>
-						<div class="prbox">${quoted}<div class="hunter_private ${bubbleColor(t)}">${t.log_content}</div></div>
+						<div class="prbox">${quoted}<div class="hunter_private ${bubbleColor(t)} ${messageEffectClass(t)}">${t.log_content}</div>${messageReactionTemplate('private', t.log_id, t.reaction)}</div>
 					</div>
 					<div class="prdate sub_priv"><i class="fa fa-check success prview ${privateView(t.view)}"> </i>${privateLogDate(t)}</div>
 				</div>
@@ -193,7 +313,7 @@ targetPrivateTemplate = t => {
 				</div>
 				<div class="priwrap">
 					<div class="privcont">
-						<div class="prbox">${quoted}<div class="target_private ${bubbleColor(t)}">${t.log_content}</div></div>
+						<div class="prbox">${quoted}<div class="target_private ${bubbleColor(t)} ${messageEffectClass(t)}">${t.log_content}</div>${messageReactionTemplate('private', t.log_id, t.reaction)}</div>
 						<div class="privopt sub_priv"></div>
 					</div>
 					<div class="prdate sub_priv prviewed">${privateLogDate(t)}</div>

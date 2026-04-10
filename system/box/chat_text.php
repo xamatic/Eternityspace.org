@@ -29,18 +29,18 @@ if(!canColor()){
 			<?php } ?>
 			<div id="color_tab">
 				<div id="reg_color" class="reg_zone vpad5">
-					<?php echo bubbleColorChoice($data['bccolor'], 2); ?>
+					<?php echo bubbleColorChoice($data['bccolor']); ?>
 					<div class="clear"></div>
 				</div>
 				<?php if(canGrad()){ ?>
 				<div id="grad_color" class="reg_zone vpad5 hide_zone">
-					<?php echo bubbleGradChoice($data['bccolor'], 2); ?>
+					<?php echo bubbleGradChoice($data['bccolor']); ?>
 					<div class="clear"></div>
 				</div>
 				<?php } ?>
 				<?php if(canNeon()){ ?>
 				<div id="neon_color" class="reg_zone vpad5 hide_zone">
-					<?php echo bubbleNeonChoice($data['bccolor'], 2); ?>
+					<?php echo bubbleNeonChoice($data['bccolor']); ?>
 					<div class="clear"></div>
 				</div>
 				<?php } ?>

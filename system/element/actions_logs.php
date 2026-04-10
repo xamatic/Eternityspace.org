@@ -1,6 +1,9 @@
 <div data="" onclick="quoteLog(this);" class="submenu_item submenu logmm log_quote">
 	<?php echo subMenu('reply', $lang['quote'], $lang['quote_text']); ?>
 </div>
+<div data="" onclick="openLogReactionMenu(this);" class="submenu_item submenu logmm log_react">
+	<?php echo subMenu('face-smile', 'React', 'React to this post'); ?>
+</div>
 <div data="" onclick="hideLog(this);" class="submenu_item submenu logmm log_hide">
 	<?php echo subMenu('eye-slash', $lang['hide'], $lang['hide_text']); ?>
 </div>

@@ -29,8 +29,9 @@ if(profileStyle($user)){
 if($use_style){
 	echo boomTemplate('element/profile_style_load', $style);
 }
+$profile_fx = userProfileEffectClasses($user['user_id']);
 ?>
-<div class="profile_wrap <?php if($use_style){ echo 'pstyle_box'; } ?> pstylewrap">
+<div class="profile_wrap <?php if($use_style){ echo 'pstyle_box'; } ?> <?php echo $profile_fx; ?> pstylewrap">
 	<div class="modal_wrap_top pro_top profile_background <?php echo coverClass($user); ?> pstyletop" <?php echo getCover($user); ?>>
 		<div class="btable">
 			<div class="bcell">

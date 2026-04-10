@@ -131,6 +131,11 @@ setUserRoom();
 					</svg>
 				</div>
 			</div>
+			<div id="public_theme_menu_btn" title="Public Themes" class="bhover left_menu_item menutrig" onclick="hideLeftMenu(); getPublicThemeLeft();">
+				<div class="left_menu_icon">
+					<i class="fa fa-brush leftmenui"></i>
+				</div>
+			</div>
 		</div>
 	</div>
 
@@ -241,6 +246,9 @@ setUserRoom();
 								</div>
 							</div>
 						</form>
+						<div id="slash_command_menu" class="slash_command_menu back_box bshadow fhide">
+							<div id="slash_command_list"></div>
+						</div>
 					</div>
 					<div id="main_disabled" class="hidden">
 						<div id="disabled_content" class="btable">
@@ -818,6 +826,34 @@ setUserRoom();
 				</div>
 			</div>
 			<?php } ?>
+			<?php if(useWallet()){ ?>
+			<div class="fmenu_item bhover mmenu_item" onclick="getEffectsShop();">
+				<div class="fmenu_icon">
+					<i class="fa fa-bolt menui"></i>
+				</div>
+				<div class="fmenu_text">
+					Effects
+				</div>
+			</div>
+			<?php } ?>
+			<div class="fmenu_item bhover mmenu_item" onclick="getAnimationSettings();">
+				<div class="fmenu_icon">
+					<i class="fa fa-film menui"></i>
+				</div>
+				<div class="fmenu_text">
+					Animations
+				</div>
+			</div>
+			<?php if(boomAllow(99)){ ?>
+			<div class="fmenu_item bhover mmenu_item" onclick="getGoofyAdminPanel();">
+				<div class="fmenu_icon">
+					<i class="fa fa-masks-theater menui"></i>
+				</div>
+				<div class="fmenu_text">
+					Goofy Panel
+				</div>
+			</div>
+			<?php } ?>
 			<div class="fmenu_item bhover mmenu_item" onclick="getSoundSetting();">
 				<div class="fmenu_icon">
 					<i class="fa fa-volume-up menui"></i>
@@ -836,6 +872,14 @@ setUserRoom();
 				</div>
 			</div>
 			<?php } ?>
+			<div class="fmenu_item bhover mmenu_item" onclick="getPublicThemeLeft();">
+				<div class="fmenu_icon">
+					<i class="fa fa-brush menui"></i>
+				</div>
+				<div class="fmenu_text">
+					Public Themes
+				</div>
+			</div>
 			<?php if(userDj($data)){ ?>
 			<div class="fmenu_item  bhover mmenu_item" onclick="openOnair();">
 				<div class="fmenu_icon">
@@ -977,6 +1021,22 @@ setUserRoom();
 	<div id="logmenu" class="logmenu">
 	</div>
 </div>
+<div id="reaction_picker_menu" class="bshadow back_menu">
+	<div class="reaction_picker_head bborder">
+		<div class="reaction_picker_title">React</div>
+		<div id="reaction_picker_close" class="reaction_picker_close"><i class="fa fa-times"></i></div>
+	</div>
+	<div id="reaction_picker_list" class="reaction_picker_list"></div>
+</div>
+<div id="goofy_event_box" class="goofy_event_box fhide">
+	<div id="goofy_event_handle" class="goofy_event_handle">Global Event</div>
+	<div id="goofy_event_text" class="goofy_event_text"></div>
+</div>
+<div id="goofy_jumpscare" class="goofy_jumpscare fhide">
+	<img id="goofy_jumpscare_img" src="" alt="event"/>
+	<div id="goofy_jumpscare_text" class="goofy_jumpscare_text"></div>
+</div>
+<audio id="goofy_audio_player" class="hidden"></audio>
 
 
 <div id="monitor_data" onclick="getMonitor();">
@@ -995,6 +1055,7 @@ setUserRoom();
 	<?php echo boomTemplate('element/actions_private'); ?>
 </div>
 <script data-cfasync="false">
+	<?php $anim_cfg = userAnimationConfig($data); ?>
 	var curPage = 'chat';
 	var user_name = <?php echo json_encode($data['user_name']); ?>;
 	var roomTitle = <?php echo json_encode($room['room_name']); ?>;
@@ -1006,6 +1067,10 @@ setUserRoom();
 	var callLock = <?php echo json_encode($data['bcall']); ?>;
 	var ignoreList = new Set(<?php echo json_encode(loadIgnore($data['user_id'])); ?>);
 	var ububble = <?php echo json_encode($data['user_bubble']); ?>;
+	var animMaster = <?php echo (int) $anim_cfg['master']; ?>;
+	var animChatfx = <?php echo (int) $anim_cfg['chatfx']; ?>;
+	var animGoofy = <?php echo (int) $anim_cfg['goofy']; ?>;
+	var animOverlay = <?php echo (int) $anim_cfg['overlay']; ?>;
 </script>
 <?php if(usePlayer()){ ?>
 <script data-cfasync="false">
@@ -1014,11 +1079,12 @@ setUserRoom();
 <?php } ?>
 <?php loadAddonsJs();?>
 
-<script data-cfasync="false" src="js/function_main.js<?php echo $bbfv; ?>"></script>
-<script data-cfasync="false" src="js/function_temp.js<?php echo $bbfv; ?>"></script>
-<script data-cfasync="false" src="js/function_menu.js<?php echo $bbfv; ?>"></script>
-<script data-cfasync="false" src="js/function_player.js<?php echo $bbfv; ?>"></script>
-<script data-cfasync="false" src="js/function_call.js<?php echo $bbfv; ?>"></script>
+<?php $chat_cache_force = (strpos($bbfv, '?') === 0) ? '&cv=20260410_publicthemes_1' : '?cv=20260410_publicthemes_1'; ?>
+<script data-cfasync="false" src="js/function_main.js<?php echo $bbfv . $chat_cache_force; ?>"></script>
+<script data-cfasync="false" src="js/function_temp.js<?php echo $bbfv . $chat_cache_force; ?>"></script>
+<script data-cfasync="false" src="js/function_menu.js<?php echo $bbfv . $chat_cache_force; ?>"></script>
+<script data-cfasync="false" src="js/function_player.js<?php echo $bbfv . $chat_cache_force; ?>"></script>
+<script data-cfasync="false" src="js/function_call.js<?php echo $bbfv . $chat_cache_force; ?>"></script>
 <?php if(canUploadChat() || canUploadPrivate()){ ?>
-<script data-cfasync="false" src="js/function_paste.js<?php echo $bbfv; ?>"></script>
+<script data-cfasync="false" src="js/function_paste.js<?php echo $bbfv . $chat_cache_force; ?>"></script>
 <?php } ?>

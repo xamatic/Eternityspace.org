@@ -1855,6 +1855,44 @@ function saveUserData($user, $key, $value){
 	}
 	redisDel('data:' . $key . ':' . $user['user_id']);
 }
+function userAnimSetting($user, $key, $default = 1){
+	if(empty($user) || !isset($user['user_id'])){
+		return (int) $default;
+	}
+	$val = userDataDetails($user, $key);
+	if($val === '' || $val === null){
+		return (int) $default;
+	}
+	return ((int) $val > 0) ? 1 : 0;
+}
+function userAnimationConfig($user){
+	return [
+		'master' => userAnimSetting($user, 'anim_master', 1),
+		'chatfx' => userAnimSetting($user, 'anim_chatfx', 1),
+		'goofy' => userAnimSetting($user, 'anim_goofy', 1),
+		'overlay' => userAnimSetting($user, 'anim_overlay', 1),
+	];
+}
+function animationAllowed($type = 'chatfx'){
+	global $data;
+	if(empty($data) || !isset($data['user_id'])){
+		return true;
+	}
+	$config = userAnimationConfig($data);
+	if($config['master'] < 1){
+		return false;
+	}
+	switch($type){
+		case 'chatfx':
+			return ($config['chatfx'] > 0);
+		case 'goofy':
+			return ($config['goofy'] > 0);
+		case 'overlay':
+			return ($config['overlay'] > 0);
+		default:
+			return true;
+	}
+}
 
 // topic
 
@@ -1872,6 +1910,1099 @@ function getTopic($room){
 	else {
 		return [];
 	}
+}
+
+// message reaction
+
+function defaultReactionList(){
+	return [
+		['value' => 1, 'key' => 'default_images/reaction/like.svg', 'src' => 'default_images/reaction/like.svg'],
+		['value' => 2, 'key' => 'default_images/reaction/dislike.svg', 'src' => 'default_images/reaction/dislike.svg'],
+		['value' => 3, 'key' => 'default_images/reaction/love.svg', 'src' => 'default_images/reaction/love.svg'],
+		['value' => 4, 'key' => 'default_images/reaction/funny.svg', 'src' => 'default_images/reaction/funny.svg'],
+	];
+}
+function legacyReactionKey($value){
+	$value = (int) $value;
+	foreach(defaultReactionList() as $react){
+		if((int) $react['value'] === $value){
+			return $react['key'];
+		}
+	}
+	return '';
+}
+function reactionValueFromKey($key){
+	$key = trim((string) $key);
+	if($key === ''){
+		return 0;
+	}
+	foreach(defaultReactionList() as $react){
+		if($react['key'] === $key){
+			return (int) $react['value'];
+		}
+	}
+	return 0;
+}
+function reactionKeyFromRow($row){
+	$key = '';
+	if(isset($row['react_key'])){
+		$key = trim((string) $row['react_key']);
+	}
+	if($key === '' && isset($row['react_value'])){
+		$key = legacyReactionKey($row['react_value']);
+	}
+	return $key;
+}
+function validReactionEmojiFile($file){
+	$allowed = ['png', 'svg', 'gif', 'webp', 'jpg', 'jpeg'];
+	$ext = strtolower(pathinfo((string) $file, PATHINFO_EXTENSION));
+	if(in_array($ext, $allowed, true)){
+		return true;
+	}
+	return false;
+}
+function reactionEmojiPool(){
+	static $pool = null;
+	if($pool !== null){
+		return $pool;
+	}
+	$items = [];
+	foreach(defaultReactionList() as $react){
+		$items[$react['key']] = [
+			'key' => $react['key'],
+			'src' => $react['src'],
+		];
+	}
+	$base = BOOM_PATH . '/emoticon';
+	if(!is_dir($base)){
+		$pool = array_values($items);
+		return $pool;
+	}
+	$entries = scandir($base);
+	foreach($entries as $entry){
+		if($entry === '.' || $entry === '..'){
+			continue;
+		}
+		$entry_path = $base . '/' . $entry;
+		if(is_file($entry_path) && validReactionEmojiFile($entry)){
+			$key = 'emoticon/' . $entry;
+			$items[$key] = [
+				'key' => $key,
+				'src' => $key,
+			];
+			continue;
+		}
+		if(!is_dir($entry_path)){
+			continue;
+		}
+		$sub_entries = scandir($entry_path);
+		foreach($sub_entries as $file){
+			if($file === '.' || $file === '..'){
+				continue;
+			}
+			if(!validReactionEmojiFile($file)){
+				continue;
+			}
+			$key = 'emoticon/' . $entry . '/' . $file;
+			$items[$key] = [
+				'key' => $key,
+				'src' => $key,
+			];
+		}
+	}
+	$pool = array_values($items);
+	return $pool;
+}
+function reactionEmojiMap(){
+	static $map = null;
+	if($map !== null){
+		return $map;
+	}
+	$map = [];
+	foreach(reactionEmojiPool() as $item){
+		$map[$item['key']] = $item['src'];
+	}
+	return $map;
+}
+function validReactionKey($key){
+	$key = trim((string) $key);
+	if($key === ''){
+		return false;
+	}
+	$map = reactionEmojiMap();
+	if(isset($map[$key])){
+		return true;
+	}
+	return false;
+}
+function ensureMessageReactionTable(){
+	global $mysqli;
+	static $ready = false;
+	if($ready){
+		return true;
+	}
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_message_react` (
+		`id` int(11) NOT NULL AUTO_INCREMENT,
+		`react_scope` tinyint(1) NOT NULL DEFAULT '1',
+		`react_target` int(11) NOT NULL DEFAULT '0',
+		`react_user` int(11) NOT NULL DEFAULT '0',
+		`react_value` tinyint(1) NOT NULL DEFAULT '1',
+		`react_key` varchar(190) NOT NULL DEFAULT '',
+		`react_time` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`id`),
+		UNIQUE KEY `react_unique` (`react_scope`, `react_target`, `react_user`),
+		KEY `react_target_index` (`react_scope`, `react_target`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$has_key = $mysqli->query("SHOW COLUMNS FROM boom_message_react LIKE 'react_key'");
+	if($has_key && $has_key->num_rows < 1){
+		$mysqli->query("ALTER TABLE boom_message_react ADD react_key varchar(190) NOT NULL DEFAULT '' AFTER react_value");
+	}
+	$ready = true;
+	return true;
+}
+function validMessageReaction($type){
+	if(in_array((int) $type, array(1,2,3,4), true)){
+		return true;
+	}
+	return false;
+}
+function messageReactionData($scope, $target){
+	global $mysqli, $data;
+	$react = [
+		'mine'=> '',
+		'like'=> 0,
+		'dislike'=> 0,
+		'love'=> 0,
+		'funny'=> 0,
+		'total'=> 0,
+		'items'=> [],
+	];
+	$scope = (int) $scope;
+	$target = (int) $target;
+	if($target < 1 || !in_array($scope, array(1,2), true)){
+		return $react;
+	}
+	try {
+		ensureMessageReactionTable();
+		$counts = $mysqli->query("SELECT react_value, react_key, COUNT(*) AS total FROM boom_message_react WHERE react_scope = '$scope' AND react_target = '$target' GROUP BY react_value, react_key");
+		$count_list = [];
+		if($counts){
+			while($count = $counts->fetch_assoc()){
+				$key = reactionKeyFromRow($count);
+				if($key === ''){
+					continue;
+				}
+				$amount = (int) $count['total'];
+				if(!isset($count_list[$key])){
+					$count_list[$key] = 0;
+				}
+				$count_list[$key] += $amount;
+				switch(reactionValueFromKey($key)){
+					case 1:
+						$react['like'] += $amount;
+						break;
+					case 2:
+						$react['dislike'] += $amount;
+						break;
+					case 3:
+						$react['love'] += $amount;
+						break;
+					case 4:
+						$react['funny'] += $amount;
+						break;
+				}
+			}
+		}
+		if(!empty($count_list)){
+			arsort($count_list, SORT_NUMERIC);
+			foreach($count_list as $key => $amount){
+				$react['items'][] = [
+					'key' => $key,
+					'src' => $key,
+					'count' => (int) $amount,
+				];
+				$react['total'] += (int) $amount;
+			}
+		}
+		if(isset($data['user_id'])){
+			$user_id = (int) $data['user_id'];
+			if($user_id > 0){
+				$mine = $mysqli->query("SELECT react_value, react_key FROM boom_message_react WHERE react_scope = '$scope' AND react_target = '$target' AND react_user = '$user_id' LIMIT 1");
+				if($mine && $mine->num_rows > 0){
+					$user_react = $mine->fetch_assoc();
+					$react['mine'] = reactionKeyFromRow($user_react);
+				}
+			}
+		}
+	}
+	catch(Throwable $e) {
+		return $react;
+	}
+	return $react;
+}
+
+// goofy global events
+
+function canGoofyAdmin(){
+	if(boomAllow(99)){
+		return true;
+	}
+	return false;
+}
+function ensureGoofyEventTable(){
+	global $mysqli;
+	static $ready = false;
+	if($ready){
+		return true;
+	}
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_goofy_event` (
+		`event_id` int(11) NOT NULL AUTO_INCREMENT,
+		`event_type` varchar(20) NOT NULL DEFAULT '',
+		`event_room` int(11) NOT NULL DEFAULT '0',
+		`event_targets` text,
+		`event_data` mediumtext,
+		`event_drag` tinyint(1) NOT NULL DEFAULT '0',
+		`event_created` int(11) NOT NULL DEFAULT '0',
+		`event_expire` int(11) NOT NULL DEFAULT '0',
+		`event_user` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`event_id`),
+		KEY `event_room_created` (`event_room`, `event_created`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$ready = true;
+	return true;
+}
+function validGoofyEventType($type){
+	if(in_array($type, ['announce', 'jumpscare', 'audio', 'goofy'], true)){
+		return true;
+	}
+	return false;
+}
+function goofyTargetCsvFromNames($raw_names, $room_id = 0){
+	global $mysqli;
+	$room_id = (int) $room_id;
+	$names = explode(',', (string) $raw_names);
+	$ids = [];
+	foreach($names as $name){
+		$name = trim($name);
+		if($name === ''){
+			continue;
+		}
+		$name = boomSanitize($name);
+		if($name === ''){
+			continue;
+		}
+		$q_room = '';
+		if($room_id > 0){
+			$q_room = "AND user_roomid = '$room_id'";
+		}
+		$get = $mysqli->query("SELECT user_id FROM boom_users WHERE user_name = '$name' $q_room LIMIT 1");
+		if($get && $get->num_rows > 0){
+			$r = $get->fetch_assoc();
+			$ids[(int) $r['user_id']] = 1;
+		}
+	}
+	if(empty($ids)){
+		return '';
+	}
+	return implode(',', array_keys($ids));
+}
+function createGoofyEvent($type, $payload = [], $room_id = 0, $targets = 'all', $draggable = 0, $duration = 30){
+	global $mysqli, $data;
+	$type = boomSanitize($type);
+	if(!validGoofyEventType($type)){
+		return false;
+	}
+	ensureGoofyEventTable();
+	$room_id = (int) $room_id;
+	$targets = trim((string) $targets);
+	if($targets === ''){
+		$targets = 'all';
+	}
+	$draggable = ((int) $draggable > 0) ? 1 : 0;
+	$duration = (int) $duration;
+	if($duration < 5){
+		$duration = 5;
+	}
+	if($duration > 120){
+		$duration = 120;
+	}
+	$expire = time() + $duration;
+	$event_data = escape(json_encode($payload, JSON_UNESCAPED_UNICODE));
+	$event_user = isset($data['user_id']) ? (int) $data['user_id'] : 0;
+	$targets = escape($targets);
+	$mysqli->query("INSERT INTO boom_goofy_event (event_type, event_room, event_targets, event_data, event_drag, event_created, event_expire, event_user)
+		VALUES ('$type', '$room_id', '$targets', '$event_data', '$draggable', '" . time() . "', '$expire', '$event_user')");
+	return true;
+}
+function getPendingGoofyEvents($user, $room_id){
+	global $mysqli;
+	$events = [];
+	if(empty($user) || !isset($user['user_id'])){
+		return $events;
+	}
+	ensureGoofyEventTable();
+	$room_id = (int) $room_id;
+	$uid = (int) $user['user_id'];
+	$last_seen = (int) userDataDetails($user, 'goofy_event_seen');
+	$get = $mysqli->query("SELECT * FROM boom_goofy_event
+		WHERE event_id > '$last_seen' AND (event_room = '0' OR event_room = '$room_id') AND event_expire >= '" . time() . "'
+		ORDER BY event_id ASC LIMIT 25");
+	$max_seen = $last_seen;
+	if($get){
+		while($row = $get->fetch_assoc()){
+			$eid = (int) $row['event_id'];
+			if($eid > $max_seen){
+				$max_seen = $eid;
+			}
+			$targets = trim((string) $row['event_targets']);
+			if($targets !== '' && $targets !== 'all'){
+				$target_list = array_map('intval', explode(',', $targets));
+				if(!in_array($uid, $target_list, true)){
+					continue;
+				}
+			}
+			$payload = [];
+			if(!empty($row['event_data'])){
+				$decoded = json_decode($row['event_data'], true);
+				if(is_array($decoded)){
+					$payload = $decoded;
+				}
+			}
+			$events[] = [
+				'id' => $eid,
+				'type' => $row['event_type'],
+				'drag' => (int) $row['event_drag'],
+				'data' => $payload,
+			];
+		}
+	}
+	if($max_seen > $last_seen){
+		saveUserData($user, 'goofy_event_seen', $max_seen);
+	}
+	return $events;
+}
+
+// public themes
+
+function ensurePublicThemeTable(){
+	global $mysqli;
+	static $ready = false;
+	if($ready){
+		return true;
+	}
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_public_theme` (
+		`theme_id` int(11) NOT NULL AUTO_INCREMENT,
+		`theme_user` int(11) NOT NULL DEFAULT '0',
+		`theme_name` varchar(80) NOT NULL DEFAULT '',
+		`theme_slug` varchar(120) NOT NULL DEFAULT '',
+		`theme_status` tinyint(1) NOT NULL DEFAULT '0',
+		`theme_locked` tinyint(1) NOT NULL DEFAULT '0',
+		`theme_config` mediumtext,
+		`theme_custom_css` mediumtext,
+		`theme_background` varchar(190) NOT NULL DEFAULT '',
+		`theme_folder` varchar(80) NOT NULL DEFAULT '',
+		`theme_note` varchar(255) NOT NULL DEFAULT '',
+		`theme_created` int(11) NOT NULL DEFAULT '0',
+		`theme_updated` int(11) NOT NULL DEFAULT '0',
+		`theme_submitted` int(11) NOT NULL DEFAULT '0',
+		`theme_reviewed` int(11) NOT NULL DEFAULT '0',
+		`theme_reviewer` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`theme_id`),
+		UNIQUE KEY `theme_user_unique` (`theme_user`),
+		KEY `theme_status` (`theme_status`),
+		KEY `theme_folder` (`theme_folder`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$ready = true;
+	return true;
+}
+function publicThemeCanPublish($user = []){
+	if(!empty($user) && isset($user['user_rank'])){
+		if((int) $user['user_rank'] >= 50){
+			return true;
+		}
+		return false;
+	}
+	if(boomAllow(50)){
+		return true;
+	}
+	return false;
+}
+function publicThemeCanModerate($user = []){
+	if(!empty($user) && isset($user['user_rank'])){
+		if((int) $user['user_rank'] >= 70){
+			return true;
+		}
+		return false;
+	}
+	if(boomAllow(70)){
+		return true;
+	}
+	return false;
+}
+function publicThemeDefaultConfig(){
+	return [
+		'header_bg' => '#111827',
+		'header_text' => '#FFFFFF',
+		'chat_bg' => '#0F172A',
+		'chat_text' => '#E2E8F0',
+		'bubble_bg' => '#1E293B',
+		'accent' => '#38BDF8',
+		'default_btn' => '#334155',
+		'panel_opacity' => 0.85,
+		'panel_blur' => 8,
+	];
+}
+function publicThemeSanitizeName($name){
+	$name = trim((string) $name);
+	$name = preg_replace('/[^a-zA-Z0-9 _-]/', '', $name);
+	$name = preg_replace('/\s+/', ' ', $name);
+	if(strlen($name) > 32){
+		$name = substr($name, 0, 32);
+	}
+	if(strlen($name) < 3){
+		return '';
+	}
+	return $name;
+}
+function publicThemeSanitizeHex($color, $fallback){
+	$color = trim((string) $color);
+	if(validColor($color)){
+		return strtoupper($color);
+	}
+	return $fallback;
+}
+function publicThemeSanitizeRange($value, $min, $max, $default, $precision = 2){
+	if(!is_numeric($value)){
+		return $default;
+	}
+	$number = (float) $value;
+	if($number < $min){
+		$number = $min;
+	}
+	if($number > $max){
+		$number = $max;
+	}
+	if($precision <= 0){
+		return (int) round($number);
+	}
+	$factor = pow(10, $precision);
+	return floor(($number * $factor) + 0.5) / $factor;
+}
+function publicThemeSanitizeCss($css){
+	$css = trim((string) $css);
+	if($css === ''){
+		return '';
+	}
+	$css = str_ireplace(['<?php', '<?', '?>', '<script', '</script', '<style', '</style'], '', $css);
+	$css = str_replace(['<', '>'], '', $css);
+	if(strlen($css) > 6000){
+		$css = substr($css, 0, 6000);
+	}
+	return $css;
+}
+function publicThemeSanitizeConfig($raw){
+	$default = publicThemeDefaultConfig();
+	if(!is_array($raw)){
+		$raw = [];
+	}
+	$config = $default;
+	$config['header_bg'] = publicThemeSanitizeHex($raw['header_bg'] ?? $default['header_bg'], $default['header_bg']);
+	$config['header_text'] = publicThemeSanitizeHex($raw['header_text'] ?? $default['header_text'], $default['header_text']);
+	$config['chat_bg'] = publicThemeSanitizeHex($raw['chat_bg'] ?? $default['chat_bg'], $default['chat_bg']);
+	$config['chat_text'] = publicThemeSanitizeHex($raw['chat_text'] ?? $default['chat_text'], $default['chat_text']);
+	$config['bubble_bg'] = publicThemeSanitizeHex($raw['bubble_bg'] ?? $default['bubble_bg'], $default['bubble_bg']);
+	$config['accent'] = publicThemeSanitizeHex($raw['accent'] ?? $default['accent'], $default['accent']);
+	$config['default_btn'] = publicThemeSanitizeHex($raw['default_btn'] ?? $default['default_btn'], $default['default_btn']);
+	$config['panel_opacity'] = publicThemeSanitizeRange($raw['panel_opacity'] ?? $default['panel_opacity'], 0.30, 1.00, $default['panel_opacity'], 2);
+	$config['panel_blur'] = publicThemeSanitizeRange($raw['panel_blur'] ?? $default['panel_blur'], 0, 24, $default['panel_blur'], 0);
+	return $config;
+}
+function publicThemeNormalizeBackground($background){
+	$background = trim((string) $background);
+	if($background === ''){
+		return '';
+	}
+	if(strpos($background, BOOM_DOMAIN) === 0){
+		$background = str_replace(BOOM_DOMAIN, '', $background);
+	}
+	$background = ltrim($background, '/');
+	if(strpos($background, '..') !== false){
+		return '';
+	}
+	if(strpos($background, 'theme_public/') !== 0){
+		return '';
+	}
+	if(!file_exists(BOOM_PATH . '/' . $background)){
+		return '';
+	}
+	return $background;
+}
+function publicThemeBackgroundUrl($background){
+	$background = publicThemeNormalizeBackground($background);
+	if($background === ''){
+		return '';
+	}
+	return BOOM_DOMAIN . $background;
+}
+function publicThemeConfigFromRow($row){
+	if(!is_array($row) || empty($row)){
+		return publicThemeDefaultConfig();
+	}
+	$raw = [];
+	if(isset($row['theme_config']) && $row['theme_config'] !== ''){
+		$decoded = json_decode($row['theme_config'], true);
+		if(is_array($decoded)){
+			$raw = $decoded;
+		}
+	}
+	return publicThemeSanitizeConfig($raw);
+}
+function publicThemeFolderName($theme_id){
+	$theme_id = (int) $theme_id;
+	if($theme_id < 1){
+		return '';
+	}
+	return 'pt_' . $theme_id;
+}
+function publicThemeGetByUser($user_id){
+	global $mysqli;
+	$user_id = (int) $user_id;
+	if($user_id < 1){
+		return [];
+	}
+	ensurePublicThemeTable();
+	$get = $mysqli->query("SELECT * FROM boom_public_theme WHERE theme_user = '$user_id' LIMIT 1");
+	if($get && $get->num_rows > 0){
+		return $get->fetch_assoc();
+	}
+	return [];
+}
+function publicThemeGetById($theme_id){
+	global $mysqli;
+	$theme_id = (int) $theme_id;
+	if($theme_id < 1){
+		return [];
+	}
+	ensurePublicThemeTable();
+	$get = $mysqli->query("SELECT * FROM boom_public_theme WHERE theme_id = '$theme_id' LIMIT 1");
+	if($get && $get->num_rows > 0){
+		return $get->fetch_assoc();
+	}
+	return [];
+}
+function publicThemeHexToRgb($hex){
+	$hex = ltrim((string) $hex, '#');
+	if(strlen($hex) !== 6){
+		return [255, 255, 255];
+	}
+	return [
+		hexdec(substr($hex, 0, 2)),
+		hexdec(substr($hex, 2, 2)),
+		hexdec(substr($hex, 4, 2)),
+	];
+}
+function publicThemeRgba($hex, $alpha){
+	$rgb = publicThemeHexToRgb($hex);
+	$alpha = publicThemeSanitizeRange($alpha, 0, 1, 1, 2);
+	return 'rgba(' . $rgb[0] . ',' . $rgb[1] . ',' . $rgb[2] . ',' . $alpha . ')';
+}
+function publicThemeBuildCss($config, $background = '', $custom_css = ''){
+	$config = publicThemeSanitizeConfig($config);
+	$background = publicThemeBackgroundUrl($background);
+	$custom_css = publicThemeSanitizeCss($custom_css);
+
+	$header_bg = $config['header_bg'];
+	$header_text = $config['header_text'];
+	$chat_bg = $config['chat_bg'];
+	$chat_text = $config['chat_text'];
+	$bubble_bg = $config['bubble_bg'];
+	$accent = $config['accent'];
+	$default_btn = $config['default_btn'];
+	$panel_opacity = $config['panel_opacity'];
+	$panel_blur = (int) $config['panel_blur'];
+
+	$panel_bg = publicThemeRgba($chat_bg, $panel_opacity);
+	$bubble_soft = publicThemeRgba($bubble_bg, min(1, $panel_opacity + 0.1));
+	$line_soft = publicThemeRgba($header_text, 0.14);
+	$hover_soft = publicThemeRgba($header_text, 0.10);
+	$input_bg = publicThemeRgba($header_text, 0.06);
+
+	$sheet = '';
+	$sheet .= "@import url('../Lite/Lite.css" . boomFileVersion() . "');\n";
+	$sheet .= "a { color: {$accent}; }\n";
+	$sheet .= "body { background: {$chat_bg}; color: {$chat_text};";
+	if($background !== ''){
+		$sheet .= " background-image: url('{$background}'); background-size: cover; background-position: center center; background-attachment: fixed;";
+	}
+	$sheet .= " }\n";
+	$sheet .= "input, textarea, .post_input_container { background: {$input_bg}; border: 1px solid {$line_soft} !important; color: {$chat_text}; }\n";
+	$sheet .= ".setdef, .default_color, .user { color: {$chat_text}; }\n";
+	$sheet .= ".bhead, .bsidebar, .modal_top, .pro_top, .bfoot, .foot, .back_pmenu, .back_ptop { background: {$header_bg}; color: {$header_text}; }\n";
+	$sheet .= ".theme_color, .menui, .subi { color: {$accent}; }\n";
+	$sheet .= ".theme_btn, .back_theme, .my_notice { background: {$accent}; color: {$header_text}; }\n";
+	$sheet .= ".default_btn, .back_default, .defaultd_btn, .send_btn { background: {$default_btn}; color: {$header_text}; }\n";
+	$sheet .= ".backglob, .back_chat, .back_priv, .back_panel, .back_menu, .back_box, .back_input, .back_modal, .page_element, .back_quote { background: {$panel_bg}; color: {$chat_text}; }\n";
+	$sheet .= ".mbubble, .hunter_private, .targ_quote, .reply_item, .cquote { background: {$bubble_soft}; color: {$chat_text}; }\n";
+	$sheet .= ".my_log, .target_private, .hunt_quote { background: {$bubble_bg}; color: {$header_text}; }\n";
+	$sheet .= ".chat_system, .sub_text, .sub_date, .input_item { color: {$line_soft}; }\n";
+	$sheet .= ".bback, .bbackhover, .modal_mback { background: {$input_bg}; }\n";
+	$sheet .= ".bhover:hover, .bhoverr:hover, .bbackhover:hover, .blisting:hover, .submenu:hover, .bmenu:hover, .bpmenu:hover, .bsub:hover { background: {$hover_soft}; }\n";
+	$sheet .= ".bborder, .tborder, .lborder, .rborder, .fborder, .blisting, .blist, .float_top, .float_ctop, .modal_mborder { border-color: {$line_soft}; }\n";
+	$sheet .= ".bshadow, .page_element, .float_menu, .btnshadow, .pboxed, .tab_menu { box-shadow: 0 8px 24px rgba(0,0,0,0.35); }\n";
+	$sheet .= ".modal_back { background-color: rgba(0,0,0,0.55); }\n";
+	if($panel_blur > 0){
+		$sheet .= ".backglob, .back_chat, .back_priv, .back_panel, .back_menu, .back_box, .back_input, .back_modal, .page_element, .back_quote { backdrop-filter: blur({$panel_blur}px); -webkit-backdrop-filter: blur({$panel_blur}px); }\n";
+	}
+	if($custom_css !== ''){
+		$sheet .= "\n/* custom css */\n" . $custom_css . "\n";
+	}
+	return $sheet;
+}
+function publicThemeWriteCssFile($theme){
+	if(empty($theme) || !isset($theme['theme_id'])){
+		return '';
+	}
+	$folder = publicThemeFolderName($theme['theme_id']);
+	if($folder === ''){
+		return '';
+	}
+	$path = BOOM_PATH . '/css/themes/' . $folder;
+	if(!is_dir($path)){
+		@mkdir($path, 0755, true);
+	}
+	if(!is_dir($path)){
+		return '';
+	}
+	$config = publicThemeConfigFromRow($theme);
+	$custom_css = isset($theme['theme_custom_css']) ? (string) $theme['theme_custom_css'] : '';
+	$background = isset($theme['theme_background']) ? (string) $theme['theme_background'] : '';
+	$sheet = publicThemeBuildCss($config, $background, $custom_css);
+	$target = $path . '/' . $folder . '.css';
+	if(@file_put_contents($target, $sheet) === false){
+		return '';
+	}
+	return $folder;
+}
+function isApprovedPublicThemeFolder($folder){
+	global $mysqli;
+	static $cache = [];
+	$folder = trim((string) $folder);
+	if($folder === ''){
+		return false;
+	}
+	if(isset($cache[$folder])){
+		return $cache[$folder];
+	}
+	ensurePublicThemeTable();
+	$safe = escape($folder);
+	$check = $mysqli->query("SELECT theme_id FROM boom_public_theme WHERE theme_folder = '$safe' AND theme_status = '2' LIMIT 1");
+	if($check && $check->num_rows > 0){
+		$cache[$folder] = true;
+		return true;
+	}
+	$cache[$folder] = false;
+	return false;
+}
+function publicThemeStatusText($status){
+	switch((int) $status){
+		case 1:
+			return 'Pending review';
+		case 2:
+			return 'Approved';
+		case 3:
+			return 'Rejected';
+		default:
+			return 'Draft';
+	}
+}
+function publicThemeStatusClass($status){
+	switch((int) $status){
+		case 1:
+			return 'pending';
+		case 2:
+			return 'approved';
+		case 3:
+			return 'rejected';
+		default:
+			return 'draft';
+	}
+}
+
+// chat effects
+
+function chatEffectList(){
+	return [
+		1 => ['title' => 'Flash Pop', 'price' => 100, 'class' => 'cefx_1', 'desc' => 'Fast scale burst'],
+		2 => ['title' => 'Vortex Lift', 'price' => 200, 'class' => 'cefx_2', 'desc' => 'Pull-up with spin'],
+		3 => ['title' => 'Shock Swing', 'price' => 300, 'class' => 'cefx_3', 'desc' => 'Hard swing entry'],
+		4 => ['title' => 'Pulse Burst', 'price' => 400, 'class' => 'cefx_4', 'desc' => 'Punchy pulse wave'],
+		5 => ['title' => 'Blade Tilt', 'price' => 500, 'class' => 'cefx_5', 'desc' => 'Sharp side slash'],
+		6 => ['title' => 'Jelly Quake', 'price' => 600, 'class' => 'cefx_6', 'desc' => 'Elastic bounce quake'],
+		7 => ['title' => 'Ignite Bloom', 'price' => 700, 'class' => 'cefx_7', 'desc' => 'Bright bloom snap'],
+		8 => ['title' => 'Rocket Break', 'price' => 800, 'class' => 'cefx_8', 'desc' => 'Launch and settle'],
+		9 => ['title' => 'Wave Crush', 'price' => 900, 'class' => 'cefx_9', 'desc' => 'Crashing side wave'],
+		10 => ['title' => 'Ground Slam', 'price' => 1000, 'class' => 'cefx_10', 'desc' => 'Heavy 2D ground burst'],
+		11 => ['title' => 'Volt Snap', 'price' => 1200, 'class' => 'cefx_11', 'desc' => 'Quick electric snap'],
+		12 => ['title' => 'Rift Shift', 'price' => 1500, 'class' => 'cefx_12', 'desc' => 'Phase-in glitch shift'],
+		13 => ['title' => 'Hammer Drop', 'price' => 2000, 'class' => 'cefx_13', 'desc' => 'Weighted drop impact'],
+		14 => ['title' => 'Comet Rush', 'price' => 2600, 'class' => 'cefx_14', 'desc' => 'Comet trail streak'],
+		15 => ['title' => 'Echo Prism', 'price' => 3200, 'class' => 'cefx_15', 'desc' => 'Layered prism echo'],
+		16 => ['title' => 'Duel Breaker', 'price' => 5000, 'class' => 'cefx_16 cefx_link', 'desc' => '2D strike that hits the previous message'],
+	];
+}
+function validChatEffect($effect){
+	if(isset(chatEffectList()[(int) $effect])){
+		return true;
+	}
+}
+function ensureChatEffectTables(){
+	global $mysqli;
+	static $ready = false;
+	if($ready){
+		return true;
+	}
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_chat_effect` (
+		`id` int(11) NOT NULL AUTO_INCREMENT,
+		`user_id` int(11) NOT NULL DEFAULT '0',
+		`effect_id` tinyint(2) NOT NULL DEFAULT '0',
+		`effect_time` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`id`),
+		UNIQUE KEY `user_effect` (`user_id`,`effect_id`),
+		KEY `effect_user` (`user_id`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_chat_effect_selected` (
+		`user_id` int(11) NOT NULL DEFAULT '0',
+		`effect_id` tinyint(2) NOT NULL DEFAULT '0',
+		`set_time` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`user_id`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$ready = true;
+	return true;
+}
+function userChatEffectOwned($user_id){
+	global $mysqli;
+	$owned = [];
+	$user_id = (int) $user_id;
+	if($user_id < 1){
+		return $owned;
+	}
+	ensureChatEffectTables();
+	$get_owned = $mysqli->query("SELECT effect_id FROM boom_chat_effect WHERE user_id = '$user_id'");
+	if($get_owned){
+		while($item = $get_owned->fetch_assoc()){
+			$owned[(int) $item['effect_id']] = 1;
+		}
+	}
+	return $owned;
+}
+function userChatEffectSelected($user_id){
+	global $mysqli;
+	static $selected_cache = [];
+	$user_id = (int) $user_id;
+	if($user_id < 1){
+		return 0;
+	}
+	if(isset($selected_cache[$user_id])){
+		return $selected_cache[$user_id];
+	}
+	$selected_cache[$user_id] = 0;
+	ensureChatEffectTables();
+	$get_selected = $mysqli->query("SELECT sel.effect_id FROM boom_chat_effect_selected sel
+		LEFT JOIN boom_chat_effect own ON own.user_id = sel.user_id AND own.effect_id = sel.effect_id
+		WHERE sel.user_id = '$user_id' AND own.effect_id IS NOT NULL LIMIT 1");
+	if($get_selected && $get_selected->num_rows > 0){
+		$selected = $get_selected->fetch_assoc();
+		if(validChatEffect($selected['effect_id'])){
+			$selected_cache[$user_id] = (int) $selected['effect_id'];
+		}
+	}
+	return $selected_cache[$user_id];
+}
+function setUserChatEffect($user_id, $effect_id){
+	global $mysqli;
+	$user_id = (int) $user_id;
+	$effect_id = (int) $effect_id;
+	if($user_id < 1){
+		return false;
+	}
+	ensureChatEffectTables();
+	if($effect_id < 1){
+		$mysqli->query("DELETE FROM boom_chat_effect_selected WHERE user_id = '$user_id'");
+		return true;
+	}
+	if(!validChatEffect($effect_id)){
+		return false;
+	}
+	$mysqli->query("REPLACE INTO boom_chat_effect_selected (user_id, effect_id, set_time) VALUES ('$user_id', '$effect_id', '" . time() . "')");
+	return true;
+}
+function chatEffectClass($effect_id){
+	$effects = chatEffectList();
+	$effect_id = (int) $effect_id;
+	if(isset($effects[$effect_id])){
+		return $effects[$effect_id]['class'];
+	}
+	return '';
+}
+function messageEffectClass($user_id, $log_time){
+	$user_id = (int) $user_id;
+	$log_time = (int) $log_time;
+	if($user_id < 1 || $log_time < 1){
+		return '';
+	}
+	if(!animationAllowed('chatfx')){
+		return '';
+	}
+	if($log_time < (time() - 30)){
+		return '';
+	}
+	$effect = userChatEffectSelected($user_id);
+	if($effect < 1){
+		return '';
+	}
+	return chatEffectClass($effect);
+}
+
+// profile customization effects
+
+function profileEffectCatalog(){
+	return [
+		'avatar_frame' => [
+			'title' => 'Avatar Frames',
+			'desc' => 'Premium avatar rings and edge accents',
+			'effects' => [
+				1 => ['title' => 'Neon Ring', 'price' => 300, 'class' => 'pfx_af_1', 'desc' => 'Hot pink neon frame'],
+				2 => ['title' => 'Royal Crest', 'price' => 420, 'class' => 'pfx_af_2', 'desc' => 'Gold crown-inspired border'],
+				3 => ['title' => 'Glitch Halo', 'price' => 560, 'class' => 'pfx_af_3', 'desc' => 'Cyber split light ring'],
+				4 => ['title' => 'Candy Pop', 'price' => 700, 'class' => 'pfx_af_4', 'desc' => 'Playful bright color frame'],
+				5 => ['title' => 'Ocean Pulse', 'price' => 860, 'class' => 'pfx_af_5', 'desc' => 'Cool blue ripple edge'],
+				6 => ['title' => 'Ember Crown', 'price' => 1040, 'class' => 'pfx_af_6', 'desc' => 'Warm fire-edge glow'],
+				7 => ['title' => 'Lunar Silver', 'price' => 1220, 'class' => 'pfx_af_7', 'desc' => 'Clean moonlight silver'],
+				8 => ['title' => 'Emerald Arc', 'price' => 1440, 'class' => 'pfx_af_8', 'desc' => 'Gem green arc border'],
+				9 => ['title' => 'Rose Quartz', 'price' => 1700, 'class' => 'pfx_af_9', 'desc' => 'Soft crystal pink frame'],
+				10 => ['title' => 'Cyber Hex', 'price' => 1980, 'class' => 'pfx_af_10', 'desc' => 'Hex-tech polished ring'],
+			],
+		],
+		'name_style' => [
+			'title' => 'Name Styles',
+			'desc' => 'Custom premium username rendering for profiles',
+			'effects' => [
+				1 => ['title' => 'Solar Glow', 'price' => 260, 'class' => 'pfx_ns_1', 'desc' => 'Bright warm glow name'],
+				2 => ['title' => 'Arctic Shine', 'price' => 380, 'class' => 'pfx_ns_2', 'desc' => 'Cool icy highlight'],
+				3 => ['title' => 'Violet Beam', 'price' => 520, 'class' => 'pfx_ns_3', 'desc' => 'Bold violet sheen'],
+				4 => ['title' => 'Mint Luster', 'price' => 680, 'class' => 'pfx_ns_4', 'desc' => 'Fresh mint edge glow'],
+				5 => ['title' => 'Amber Script', 'price' => 820, 'class' => 'pfx_ns_5', 'desc' => 'Warm amber emphasis'],
+				6 => ['title' => 'Ruby Flash', 'price' => 980, 'class' => 'pfx_ns_6', 'desc' => 'Red jewel highlight'],
+				7 => ['title' => 'Skyline Bold', 'price' => 1160, 'class' => 'pfx_ns_7', 'desc' => 'City-neon text weight'],
+				8 => ['title' => 'Pearl Tone', 'price' => 1380, 'class' => 'pfx_ns_8', 'desc' => 'Smooth pearl sheen'],
+				9 => ['title' => 'Volt Type', 'price' => 1660, 'class' => 'pfx_ns_9', 'desc' => 'Electric accent name'],
+				10 => ['title' => 'Diamond Voice', 'price' => 1960, 'class' => 'pfx_ns_10', 'desc' => 'Premium crystal text'],
+			],
+		],
+		'profile_skin' => [
+			'title' => 'Profile Skins',
+			'desc' => 'Colorway themes for your profile card',
+			'effects' => [
+				1 => ['title' => 'Midnight Drift', 'price' => 420, 'class' => 'pfx_ps_1', 'desc' => 'Dark blue gradient shell'],
+				2 => ['title' => 'Peach Storm', 'price' => 560, 'class' => 'pfx_ps_2', 'desc' => 'Orange-pink glow blend'],
+				3 => ['title' => 'Emerald Night', 'price' => 720, 'class' => 'pfx_ps_3', 'desc' => 'Green noir blend'],
+				4 => ['title' => 'Polar Glass', 'price' => 900, 'class' => 'pfx_ps_4', 'desc' => 'Frosted white-blue skin'],
+				5 => ['title' => 'Sunset Core', 'price' => 1080, 'class' => 'pfx_ps_5', 'desc' => 'Sunset orange core'],
+				6 => ['title' => 'Lavender Haze', 'price' => 1280, 'class' => 'pfx_ps_6', 'desc' => 'Smooth violet skin'],
+				7 => ['title' => 'Marine Flux', 'price' => 1520, 'class' => 'pfx_ps_7', 'desc' => 'Deep marine blend'],
+				8 => ['title' => 'Ruby Shift', 'price' => 1760, 'class' => 'pfx_ps_8', 'desc' => 'Rich red gradient'],
+				9 => ['title' => 'Aurora Fade', 'price' => 2020, 'class' => 'pfx_ps_9', 'desc' => 'Northern light sweep'],
+				10 => ['title' => 'Obsidian Luxe', 'price' => 2360, 'class' => 'pfx_ps_10', 'desc' => 'Premium dark luxe shell'],
+			],
+		],
+		'mood_badge' => [
+			'title' => 'Mood Badges',
+			'desc' => 'Premium badge styling for rank and mood',
+			'effects' => [
+				1 => ['title' => 'Cherry Pulse', 'price' => 220, 'class' => 'pfx_mb_1', 'desc' => 'Crisp cherry badge'],
+				2 => ['title' => 'Ocean Dot', 'price' => 320, 'class' => 'pfx_mb_2', 'desc' => 'Blue modern badge'],
+				3 => ['title' => 'Mint Chip', 'price' => 440, 'class' => 'pfx_mb_3', 'desc' => 'Mint rounded badge'],
+				4 => ['title' => 'Citrus Pop', 'price' => 580, 'class' => 'pfx_mb_4', 'desc' => 'Lime neon badge'],
+				5 => ['title' => 'Rose Mark', 'price' => 740, 'class' => 'pfx_mb_5', 'desc' => 'Rose signal badge'],
+				6 => ['title' => 'Plasma Dot', 'price' => 920, 'class' => 'pfx_mb_6', 'desc' => 'Electric purple badge'],
+				7 => ['title' => 'Blaze Patch', 'price' => 1120, 'class' => 'pfx_mb_7', 'desc' => 'Orange fire badge'],
+				8 => ['title' => 'Sky Stamp', 'price' => 1360, 'class' => 'pfx_mb_8', 'desc' => 'Clear sky pill badge'],
+				9 => ['title' => 'Pearl Tag', 'price' => 1640, 'class' => 'pfx_mb_9', 'desc' => 'Pearly clean badge'],
+				10 => ['title' => 'Royal Plate', 'price' => 1980, 'class' => 'pfx_mb_10', 'desc' => 'Luxury deep badge'],
+			],
+		],
+		'profile_aura' => [
+			'title' => 'Profile Aura',
+			'desc' => 'Ambient aura overlays around your profile top',
+			'effects' => [
+				1 => ['title' => 'Spark Orbit', 'price' => 480, 'class' => 'pfx_pa_1', 'desc' => 'Fast sparkle ring'],
+				2 => ['title' => 'Mist Ring', 'price' => 620, 'class' => 'pfx_pa_2', 'desc' => 'Soft mist swirl'],
+				3 => ['title' => 'Pulse Halo', 'price' => 780, 'class' => 'pfx_pa_3', 'desc' => 'Heartbeat halo aura'],
+				4 => ['title' => 'Nova Flow', 'price' => 960, 'class' => 'pfx_pa_4', 'desc' => 'Bright nova flow'],
+				5 => ['title' => 'Crystal Wind', 'price' => 1180, 'class' => 'pfx_pa_5', 'desc' => 'Glassy wind shimmer'],
+				6 => ['title' => 'Ion Drift', 'price' => 1420, 'class' => 'pfx_pa_6', 'desc' => 'Ionized drift aura'],
+				7 => ['title' => 'Solar Veil', 'price' => 1680, 'class' => 'pfx_pa_7', 'desc' => 'Warm sun veil'],
+				8 => ['title' => 'Moon Dust', 'price' => 1960, 'class' => 'pfx_pa_8', 'desc' => 'Silvery moon particles'],
+				9 => ['title' => 'Prism Arc', 'price' => 2280, 'class' => 'pfx_pa_9', 'desc' => 'Prismatic moving arc'],
+				10 => ['title' => 'Eclipse Crown', 'price' => 2600, 'class' => 'pfx_pa_10', 'desc' => 'Premium eclipse aura'],
+			],
+		],
+	];
+}
+function profileEffectCategories(){
+	$catalog = profileEffectCatalog();
+	$list = [];
+	foreach($catalog as $key => $cat){
+		$list[$key] = [
+			'title' => $cat['title'],
+			'desc' => isset($cat['desc']) ? $cat['desc'] : '',
+		];
+	}
+	return $list;
+}
+function validProfileEffectCategory($category){
+	$catalog = profileEffectCatalog();
+	if(isset($catalog[$category])){
+		return true;
+	}
+	return false;
+}
+function profileEffectList($category){
+	$catalog = profileEffectCatalog();
+	if(isset($catalog[$category]['effects']) && is_array($catalog[$category]['effects'])){
+		return $catalog[$category]['effects'];
+	}
+	return [];
+}
+function validProfileEffect($category, $effect_id){
+	$effects = profileEffectList($category);
+	if(isset($effects[(int) $effect_id])){
+		return true;
+	}
+	return false;
+}
+function profileEffectPrice($category, $effect_id){
+	$effects = profileEffectList($category);
+	$effect_id = (int) $effect_id;
+	if(isset($effects[$effect_id])){
+		return (int) $effects[$effect_id]['price'];
+	}
+	return 0;
+}
+function profileEffectClassById($category, $effect_id){
+	$effects = profileEffectList($category);
+	$effect_id = (int) $effect_id;
+	if(isset($effects[$effect_id]) && !empty($effects[$effect_id]['class'])){
+		return $effects[$effect_id]['class'];
+	}
+	return '';
+}
+function ensureProfileEffectTables(){
+	global $mysqli;
+	static $ready = false;
+	if($ready){
+		return true;
+	}
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_profile_effect` (
+		`id` int(11) NOT NULL AUTO_INCREMENT,
+		`user_id` int(11) NOT NULL DEFAULT '0',
+		`effect_category` varchar(40) NOT NULL DEFAULT '',
+		`effect_id` smallint(4) NOT NULL DEFAULT '0',
+		`effect_time` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`id`),
+		UNIQUE KEY `user_effect_cat` (`user_id`,`effect_category`,`effect_id`),
+		KEY `user_cat` (`user_id`,`effect_category`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_profile_effect_selected` (
+		`user_id` int(11) NOT NULL DEFAULT '0',
+		`effect_category` varchar(40) NOT NULL DEFAULT '',
+		`effect_id` smallint(4) NOT NULL DEFAULT '0',
+		`set_time` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`user_id`,`effect_category`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$ready = true;
+	return true;
+}
+function userProfileEffectOwned($user_id, $category){
+	global $mysqli;
+	$owned = [];
+	$user_id = (int) $user_id;
+	$category = trim((string) $category);
+	if($user_id < 1 || !validProfileEffectCategory($category)){
+		return $owned;
+	}
+	ensureProfileEffectTables();
+	$category = escape($category);
+	$get_owned = $mysqli->query("SELECT effect_id FROM boom_profile_effect WHERE user_id = '$user_id' AND effect_category = '$category'");
+	if($get_owned){
+		while($item = $get_owned->fetch_assoc()){
+			$owned[(int) $item['effect_id']] = 1;
+		}
+	}
+	return $owned;
+}
+function userProfileEffectSelected($user_id, $category){
+	global $mysqli;
+	static $selected_cache = [];
+	$user_id = (int) $user_id;
+	$category = trim((string) $category);
+	if($user_id < 1 || !validProfileEffectCategory($category)){
+		return 0;
+	}
+	$cache_key = $user_id . '_' . $category;
+	if(isset($selected_cache[$cache_key])){
+		return $selected_cache[$cache_key];
+	}
+	$selected_cache[$cache_key] = 0;
+	ensureProfileEffectTables();
+	$esc_cat = escape($category);
+	$get_selected = $mysqli->query("SELECT sel.effect_id FROM boom_profile_effect_selected sel
+		LEFT JOIN boom_profile_effect own ON own.user_id = sel.user_id AND own.effect_category = sel.effect_category AND own.effect_id = sel.effect_id
+		WHERE sel.user_id = '$user_id' AND sel.effect_category = '$esc_cat' AND own.effect_id IS NOT NULL LIMIT 1");
+	if($get_selected && $get_selected->num_rows > 0){
+		$selected = $get_selected->fetch_assoc();
+		if(validProfileEffect($category, $selected['effect_id'])){
+			$selected_cache[$cache_key] = (int) $selected['effect_id'];
+		}
+	}
+	return $selected_cache[$cache_key];
+}
+function setUserProfileEffect($user_id, $category, $effect_id){
+	global $mysqli;
+	$user_id = (int) $user_id;
+	$effect_id = (int) $effect_id;
+	$category = trim((string) $category);
+	if($user_id < 1 || !validProfileEffectCategory($category)){
+		return false;
+	}
+	ensureProfileEffectTables();
+	$esc_cat = escape($category);
+	if($effect_id < 1){
+		$mysqli->query("DELETE FROM boom_profile_effect_selected WHERE user_id = '$user_id' AND effect_category = '$esc_cat'");
+		return true;
+	}
+	if(!validProfileEffect($category, $effect_id)){
+		return false;
+	}
+	$mysqli->query("REPLACE INTO boom_profile_effect_selected (user_id, effect_category, effect_id, set_time) VALUES ('$user_id', '$esc_cat', '$effect_id', '" . time() . "')");
+	return true;
+}
+function userProfileEffectClasses($user_id){
+	$user_id = (int) $user_id;
+	if($user_id < 1){
+		return '';
+	}
+	$classes = [];
+	foreach(profileEffectCategories() as $cat => $meta){
+		$selected = userProfileEffectSelected($user_id, $cat);
+		if($selected > 0){
+			$class = profileEffectClassById($cat, $selected);
+			if($class !== ''){
+				$classes[] = $class;
+			}
+		}
+	}
+	return implode(' ', $classes);
 }
 
 // create logs
@@ -1921,6 +3052,8 @@ function createLog($log, $quote = []){
 		'log_uid'=> (int) $log['log_uid'],
 		'quote'=> $quote_data,
 		'gpost'=> (int) $log['pghost'],
+		'reaction'=> ((int) $log['syslog'] === 0) ? messageReactionData(1, $log['post_id']) : null,
+		'effect'=> messageEffectClass($log['user_id'], $log['post_date']),
 		'tid'=> (int) $log['tid'],
 		'tname'=> $log['tname'],
 		'custom'=> $log['custom'],
@@ -2030,6 +3163,8 @@ function createPrivateLog($log, $quote = []){
 		'log_date'=> chatDate($log['time']),
 		'log_time'=> $log['time'],
 		'quote'=> $quote_data,
+		'reaction'=> messageReactionData(2, $log['id']),
+		'effect'=> messageEffectClass($log['user_id'], $log['time']),
 		'view'=> (int) $log['view'],
 	];
 }

@@ -8,6 +8,8 @@ if($chat_install != 1){
 }
 $page = getPageData($page_info);
 $bbfv = boomFileVersion();
+$cache_force_token = '20260410_publicthemes_1';
+$cache_force = (strpos($bbfv, '?') === 0) ? '&cv=' . $cache_force_token : '?cv=' . $cache_force_token;
 $brtl = 0;
 if(isRtl(BOOM_LANG) && $page['page_rtl'] == 1){
 	$brtl = 1;
@@ -30,7 +32,7 @@ if(boomLogged() && !boomAllow($page['page_rank'])){
 <link rel="stylesheet" type="text/css" href="css/awesome/css/all.min.css<?php echo $bbfv; ?>" />
 <link rel="stylesheet" type="text/css" href="css/selectboxit.css<?php echo $bbfv; ?>" />
 <link rel="stylesheet" type="text/css" href="js/jqueryui/jquery-ui.min.css<?php echo $bbfv; ?>" />
-<link rel="stylesheet" type="text/css" href="css/main.css<?php echo $bbfv; ?>" />
+<link rel="stylesheet" type="text/css" href="css/main.css<?php echo $bbfv . $cache_force; ?>" />
 <?php if(!boomLogged()){ ?>
 <link rel="stylesheet" type="text/css" href="control/login/<?php echo getLoginPage(); ?>/login.css<?php echo $bbfv; ?>" />
 <?php } ?>
@@ -61,13 +63,48 @@ if(boomLogged() && !boomAllow($page['page_rank'])){
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
-	navigator.serviceWorker.register('<?php echo $setting['domain']; ?>/service_worker.js')
-	  .then((registration) => {
-		console.log('Service Worker registered with scope:', registration.scope);
-	  })
-	  .catch((error) => {
-		console.error('Service Worker registration failed:', error);
-	  });
+	const cacheResetVersion = '<?php echo $cache_force_token; ?>';
+	const resetKey = 'cache_reset_' + cacheResetVersion;
+	const swUrl = '<?php echo $setting['domain']; ?>/service_worker.js?v=' + cacheResetVersion;
+
+	const unregisterWorkers = function(){
+		return navigator.serviceWorker.getRegistrations().then((registrations) => {
+			return Promise.all(registrations.map((registration) => registration.unregister()));
+		});
+	};
+
+	const clearCacheStorage = function(){
+		if(!('caches' in window)){
+			return Promise.resolve();
+		}
+		return caches.keys().then((cacheKeys) => {
+			return Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)));
+		});
+	};
+
+	const registerWorker = function(){
+		return navigator.serviceWorker.register(swUrl, { updateViaCache: 'none' })
+		  .then((registration) => {
+			console.log('Service Worker registered with scope:', registration.scope);
+		  })
+		  .catch((error) => {
+			console.error('Service Worker registration failed:', error);
+		  });
+	};
+
+	if(localStorage.getItem(resetKey) !== '1'){
+		unregisterWorkers()
+		  .catch(() => Promise.resolve())
+		  .then(clearCacheStorage)
+		  .catch(() => Promise.resolve())
+		  .then(() => {
+			localStorage.setItem(resetKey, '1');
+			window.location.reload();
+		  });
+		return;
+	}
+
+	registerWorker();
   }
 });
 </script>

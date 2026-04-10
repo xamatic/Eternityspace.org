@@ -11,10 +11,11 @@ if(profileStyle($data)){
 if($use_style){
 	echo boomTemplate('element/profile_style_load', $style);
 }
+$profile_fx = userProfileEffectClasses($data['user_id']);
 $add_music_label = isset($lang['add_music']) ? $lang['add_music'] : 'Add music';
 $del_music_label = isset($lang['del_music']) ? $lang['del_music'] : 'Remove music';
 ?>
-<div class="profile_wrap <?php if($use_style){ echo 'pstyle_box'; } ?> pstylewrap">
+<div class="profile_wrap <?php if($use_style){ echo 'pstyle_box'; } ?> <?php echo $profile_fx; ?> pstylewrap">
 	<div id="my_profile_top" class="modal_wrap_top pro_top profile_background <?php echo coverClass($data); ?> pstyletop" <?php echo getCover($data); ?>>
 		<div class="btable">
 			<div class="bcell">
