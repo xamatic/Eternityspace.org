@@ -8,14 +8,14 @@ ob_start();
 		<div class="discord_embed_wrap" style="width:100%;height:calc(100vh - 180px);min-height:520px;border-radius:8px;overflow:hidden;">
 			<iframe
 				class="discord_embed_frame"
-				src="https://e.widgetbot.io/channels/1447474462227431597/1458310522691653665"
+				src="https://e.widgetbot.io/channels/1447474462227431597/1458310339329261812"
 				title="Discord"
 				allow="clipboard-write; microphone; camera"
 				style="width:100%;height:100%;border:0;display:block;"
 				loading="lazy">
 			</iframe>
 		</div>
-		<a class="discord_embed_link" href="https://discord.com/channels/1447474462227431597/1458310522691653665" target="_blank" rel="noopener noreferrer">Open Discord in a new tab</a>
+		<a class="discord_embed_link" href="https://discord.gg/c62QZzpypf" target="_blank" rel="noopener noreferrer">Join the discord server!</a>
 	</div>
 </div>
 <?php
