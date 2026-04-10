@@ -7,7 +7,7 @@ ob_start();
 	<div class="pad10">
 		<div class="extensions_panel_intro">
 			<div class="text_med bold">Available Extensions</div>
-			<div class="sub_text tmargin5">Browse your installed extensions, see what each one does, and open its GitHub page.</div>
+			<div class="sub_text tmargin5">Extensions & Scripts created for your convenience for multiple chat sites accross the web, hand crafted by Xamatic & Pixe1wave with ❤️</div>
 		</div>
 		<div id="extensions_dynamic_list" class="extensions_grid"></div>
 	</div>

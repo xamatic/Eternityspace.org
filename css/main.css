@@ -815,7 +815,7 @@ input { font-family: sans-serif,'trebuchet ms','lucida grande','lucida sans unic
 .left_top_menu { height:40px; }
 .left_bar_option { cursor:pointer; }
 .left_head_empty { padding:0 10px; font-weight:bold; }
-#chat_left_data { width:100%; position:relative; overflow:hidden; overflow-y:auto; }
+#chat_left_data { width:100%; position:relative; overflow:hidden; overflow-y:auto; height: 100%;}
 
 /* left menu */
 #left_menu { width:50px; font-size:18px; overflow:hidden; display:table-cell; }

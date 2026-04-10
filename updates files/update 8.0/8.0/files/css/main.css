@@ -805,7 +805,7 @@ ow
 .left_top_menu { height:40px; }
 .left_bar_option { cursor:pointer; }
 .left_head_empty { padding:0 10px; font-weight:bold; }
-#chat_left_data { width:100%; position:relative; overflow:hidden; overflow-y:auto; }
+#chat_left_data { width:100%; position:relative; overflow:hidden; overflow-y:auto; height: 100%; }
 
 /* chat center css */
 #chat_center { display:table-cell;  vertical-align:top;  overflow:hidden;}
