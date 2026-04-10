@@ -1,6 +1,14 @@
 <?php
 // main system ranking functions
 
+function rankLang($key, $fallback){
+	global $lang;
+	if(isset($lang[$key]) && $lang[$key] !== ''){
+		return $lang[$key];
+	}
+	return $fallback;
+}
+
 function botRank(){
 	return 69;
 }
@@ -34,32 +42,31 @@ function rankIcon($rank){
 	}
 }
 function rankTitle($rank){
-	global $lang;
 	switch($rank){
 		case 0:
-			return $lang['guest'];
+			return rankLang('guest', 'Guest');
 		case 1:
-			return $lang['user'];
+			return rankLang('user', 'User');
 		case 50:
-			return $lang['vip'];
+			return rankLang('vip', 'VIP');
 		case 69:
-			return $lang['user_bot'];
+			return rankLang('user_bot', 'Bot');
 		case 70:
-		    return $lang['jr_mod'];
+		    return rankLang('jr_mod', 'Mod in Training');
 		case 71:
-			return $lang['mod'];
+			return rankLang('mod', 'Moderator');
 		case 80:
-			return $lang['admin'];
+			return rankLang('admin', 'Admin');
 		case 90:
-			return $lang['super_admin'];
+			return rankLang('super_admin', 'Super Admin');
 		case 99:
-		    return $lang['co_owner'];
+		    return rankLang('co_owner', 'Co Owner');
 		case 100:
-			return $lang['owner'];
+			return rankLang('owner', 'Owner');
 		case 999:
-			return $lang['nobody'];
+			return rankLang('nobody', 'Nobody');
 		default:
-			return $lang['user'];
+			return rankLang('user', 'User');
 	}
 }
 
@@ -70,20 +77,19 @@ function roomRankList(){
 }
 
 function roomRankTitle($rank){
-	global $lang;
 	switch($rank){
 		case 0:
-			return $lang['user'];
+			return rankLang('user', 'User');
 		case 4:
-			return $lang['r_mod'];
+			return rankLang('r_mod', 'Room Mod');
 		case 5:
-			return $lang['r_admin'];
+			return rankLang('r_admin', 'Room Admin');
 		case 6:
-			return $lang['r_owner'];
+			return rankLang('r_owner', 'Room Owner');
 		case 9:
-			return $lang['nobody'];
+			return rankLang('nobody', 'Nobody');
 		default:
-			return $lang['user'];
+			return rankLang('user', 'User');
 	}
 }
 function roomRankIcon($rank){
@@ -105,18 +111,17 @@ function statusList(){
 	return array(1,2,3,99);
 }
 function statusTitle($status){
-	global $lang;
 	switch($status){
 		case 1:  
-			return $lang['online'];
+			return rankLang('online', 'Online');
 		case 2:  
-			return $lang['away'];
+			return rankLang('away', 'Away');
 		case 3:  
-			return $lang['busy'];
+			return rankLang('busy', 'Busy');
 		case 99:  
-			return $lang['invisible'];
+			return rankLang('invisible', 'Invisible');
 		default: 
-			return $lang['online'];
+			return rankLang('online', 'Online');
 	}
 }
 function statusIcon($status){
