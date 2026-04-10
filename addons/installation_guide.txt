@@ -1,0 +1,24 @@
+#############################
+Addons installation guide
+#############################
+
+
+step 1- upload the folder located inside the " for codychat " 
+		that match your codychat version to the addons folder of
+		your chat.
+		
+step 2- Go to your chat admin panel in manage addons section
+step 3- install addons
+step 4- installation complete
+
+if you have any problem related to this addons installation please
+do not hesitate to contact us via the store support.
+
+Enjoy.
+
+Author: BoomCoding
+Email: boomcoding@hotmail.com
+Url: http://www.boomcoding.com
+help: http://boomcoding.com/sotre/
+
+Copyright © 2019 Codychat.

@@ -1,0 +1,22 @@
+.paint_circle { margin:1px;  width:28px; height:28px; float:left; display:inline-block; } 
+.paint_box { display:none; width:310px; padding:5px; position:absolute; top:100%; left:2px; }
+.paint_box_background { display:none; width:310px; padding:5px; position:absolute; top:100%; left:2px; }
+.paint_box_brush { display:none; width:200px; position:absolute; top:100%; left:40px; }
+.paint_button { padding:5px; min-width:40px; }
+.paint_colored { background:#000; width:16px; height:16px; display:block; margin:0 auto;  border-radius:5px; }
+.paint_item { width:40px; height:40px; text-align:center; }
+.paint_itemb { border-left:1px solid #fff; border-right:1px solid #ddd; }
+.paint_itemb:first-child { border-left:none; }
+.paint_itemb:last-child { border-right:none; }
+.paint_sizer { width:40px; height:40px; text-align:center; }
+.paint_shadow { box-shadow:0 0 0px 1px #ddd; }
+.paint_icon { height:16px; width:16px; display:block; margin:0 auto; }
+.paint_back_menu { background:#f3f3f3; }
+.paint_selected { background:#ddd; border-left:1px solid #ccc; border-right:1px solid #ccc; }
+#sketchpad  { height:300px; }
+
+/* slider */
+#paint_brush .ui-widget-content { background: #ccc; }
+#paint_brush .ui-state-default { background: #999 !important; }
+#paint_brush .ui-state-active { background: #999 !important; }
+#paint_brush .ui-slider-range { background:#000; }

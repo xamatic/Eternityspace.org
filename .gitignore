@@ -1,0 +1,58 @@
+# ------------------------------------------------------------
+# Local machine / editor noise
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.code-workspace
+
+# ------------------------------------------------------------
+# Local deploy/debug artifacts
+# ------------------------------------------------------------
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*.tgz
+*.tar
+*.tar.gz
+*.zip
+compare_results.txt
+local_pre_restore_*.tgz
+error_log
+**/error_log
+
+# ------------------------------------------------------------
+# Host/local-only files
+# ------------------------------------------------------------
+/.ftpquota
+
+# ------------------------------------------------------------
+# Environment-specific runtime config (never commit secrets)
+# ------------------------------------------------------------
+system/database.php
+system/settings.php
+
+# ------------------------------------------------------------
+# Runtime user-generated content (keep placeholders)
+# ------------------------------------------------------------
+avatar/*
+!avatar/.htaccess
+!avatar/index.php
+
+cover/*
+!cover/.htaccess
+!cover/index.php
+
+music/*
+!music/index.php
+
+room_icon/*
+!room_icon/.htaccess
+!room_icon/index.php
+
+upload/**
+!upload/.htaccess
+!upload/index.php
