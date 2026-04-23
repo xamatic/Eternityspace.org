@@ -25,6 +25,10 @@ $ad = array(
 	'custom4'=> '750000',
 	'custom5'=> '1000000',
 	'custom6'=> 0,
+	'custom7'=> '10',
+	'custom8'=> '15',
+	'custom9'=> '30',
+	'custom10'=> '60',
 	);
 	
 $install_vip = vipInstallation();	

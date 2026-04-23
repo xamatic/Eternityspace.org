@@ -79,7 +79,7 @@ input, textarea, .post_input_container { background:#151515; border:1px solid #2
 
 /* headers, footer and top modal colors */
 .bhead { background:#111; color:#fff; }
-.bsidebar { background:#080808; color:#fff; }
+.bsidebar { background:#080808; color:#fff; fill: #fff; }
 .modal_top { background:#111; color:#fff; }
 .pro_top { background:#111; color:#fff; }
 .bfoot { background:#111; color:#fff; }

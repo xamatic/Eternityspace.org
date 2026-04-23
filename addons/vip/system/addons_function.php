@@ -86,9 +86,50 @@ function vipValidPlan($plan){
 		case 3:
 		case 4:
 		case 5:
+		case 6:
+		case 7:
+		case 8:
+		case 9:
 			return true;
 		default:
 			return false;
+	}
+}
+function vipStarPriceList(){
+	global $addons;
+	$star_default = array('10.00', '15.00', '30.00', '60.00');
+	if(!isset($addons['custom8']) || $addons['custom8'] == ''){
+		return $star_default;
+	}
+	$raw = preg_split('/[|,]/', $addons['custom8']);
+	if(!is_array($raw) || count($raw) < 4){
+		return $star_default;
+	}
+	$clean = array();
+	for($i = 0; $i < 4; $i++){
+		$val = trim($raw[$i]);
+		if($val == '' || !is_numeric($val)){
+			$clean[] = $star_default[$i];
+		}
+		else {
+			$clean[] = number_format($val, 2, '.', '');
+		}
+	}
+	return $clean;
+}
+function vipStarPrice($plan){
+	$star_price = vipStarPriceList();
+	switch($plan){
+		case 6:
+			return $star_price[0];
+		case 7:
+			return $star_price[1];
+		case 8:
+			return $star_price[2];
+		case 9:
+			return $star_price[3];
+		default:
+			return 0;
 	}
 }
 function vipPrice($plan){
@@ -104,6 +145,11 @@ function vipPrice($plan){
 			return $addons['custom4'];
 		case 5:
 			return $addons['custom5'];
+		case 6:
+		case 7:
+		case 8:
+		case 9:
+			return vipStarPrice($plan);
 		default:
 			return 0;
 	}
@@ -121,6 +167,14 @@ function vipPlanName($plan){
 			return $lang['vip_plan_name4'];
 		case 5:
 			return $lang['vip_plan_name5'];
+		case 6:
+			return isset($lang['vip_plan_name6']) ? $lang['vip_plan_name6'] : '1 month Star VIP membership';
+		case 7:
+			return isset($lang['vip_plan_name7']) ? $lang['vip_plan_name7'] : '3 months Star VIP membership';
+		case 8:
+			return isset($lang['vip_plan_name8']) ? $lang['vip_plan_name8'] : '1 year Star VIP membership';
+		case 9:
+			return isset($lang['vip_plan_name9']) ? $lang['vip_plan_name9'] : 'Lifetime Star VIP membership';
 		default:
 			return '';
 	}
@@ -139,6 +193,18 @@ function vipNewTime($plan, $user){
 		$time1 = strtotime('+12 month', time());
 	}
 	else if($plan == 5){
+		$time1 = 2147483647;
+	}
+	else if($plan == 6){
+		$time1 = strtotime('+1 month', time());
+	}
+	else if($plan == 7){
+		$time1 = strtotime('+3 month', time());
+	}
+	else if($plan == 8){
+		$time1 = strtotime('+12 month', time());
+	}
+	else if($plan == 9){
 		$time1 = 2147483647;
 	}
 	else {
@@ -161,7 +227,7 @@ function recordVip($plan){
 		return false;
 	}
 	$new_time = vipNewTime($plan, $data);
-	if($plan == 5){
+	if($plan == 5 || $plan == 9){
 		$message = escape($lang['vip_thanks2']);
 	}
 	else{

@@ -2308,12 +2308,138 @@ function ensurePublicThemeTable(){
 		`theme_reviewed` int(11) NOT NULL DEFAULT '0',
 		`theme_reviewer` int(11) NOT NULL DEFAULT '0',
 		PRIMARY KEY (`theme_id`),
-		UNIQUE KEY `theme_user_unique` (`theme_user`),
+		KEY `theme_user` (`theme_user`),
 		KEY `theme_status` (`theme_status`),
 		KEY `theme_folder` (`theme_folder`)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$has_unique = $mysqli->query("SHOW INDEX FROM boom_public_theme WHERE Key_name = 'theme_user_unique'");
+	if($has_unique && $has_unique->num_rows > 0){
+		$mysqli->query("ALTER TABLE boom_public_theme DROP INDEX theme_user_unique");
+	}
+	$has_user_key = $mysqli->query("SHOW INDEX FROM boom_public_theme WHERE Key_name = 'theme_user'");
+	if(!$has_user_key || $has_user_key->num_rows < 1){
+		$mysqli->query("ALTER TABLE boom_public_theme ADD KEY theme_user (theme_user)");
+	}
+	ensurePublicThemeInstallTable();
+	ensurePublicThemeRateTable();
 	$ready = true;
 	return true;
+}
+function ensurePublicThemeInstallTable(){
+	global $mysqli;
+	static $ready = false;
+	if($ready){
+		return true;
+	}
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_public_theme_install` (
+		`install_id` int(11) NOT NULL AUTO_INCREMENT,
+		`theme_id` int(11) NOT NULL DEFAULT '0',
+		`user_id` int(11) NOT NULL DEFAULT '0',
+		`install_time` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`install_id`),
+		UNIQUE KEY `theme_user` (`theme_id`,`user_id`),
+		KEY `install_theme` (`theme_id`),
+		KEY `install_user` (`user_id`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$ready = true;
+	return true;
+}
+function ensurePublicThemeRateTable(){
+	global $mysqli;
+	static $ready = false;
+	if($ready){
+		return true;
+	}
+	$mysqli->query("CREATE TABLE IF NOT EXISTS `boom_public_theme_rate` (
+		`rate_id` int(11) NOT NULL AUTO_INCREMENT,
+		`theme_id` int(11) NOT NULL DEFAULT '0',
+		`user_id` int(11) NOT NULL DEFAULT '0',
+		`rate_value` tinyint(2) NOT NULL DEFAULT '0',
+		`rate_time` int(11) NOT NULL DEFAULT '0',
+		PRIMARY KEY (`rate_id`),
+		UNIQUE KEY `theme_user` (`theme_id`,`user_id`),
+		KEY `rate_theme` (`theme_id`),
+		KEY `rate_user` (`user_id`)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	$ready = true;
+	return true;
+}
+function publicThemeTrackInstall($theme_id, $user_id){
+	global $mysqli;
+	$theme_id = (int) $theme_id;
+	$user_id = (int) $user_id;
+	if($theme_id < 1 || $user_id < 1){
+		return false;
+	}
+	ensurePublicThemeInstallTable();
+	$now = time();
+	$mysqli->query("INSERT INTO boom_public_theme_install (theme_id, user_id, install_time)
+		VALUES ('$theme_id', '$user_id', '$now')
+		ON DUPLICATE KEY UPDATE install_time = '$now'");
+	return true;
+}
+function publicThemeInstallCount($theme_id){
+	global $mysqli;
+	$theme_id = (int) $theme_id;
+	if($theme_id < 1){
+		return 0;
+	}
+	ensurePublicThemeInstallTable();
+	$get = $mysqli->query("SELECT COUNT(*) AS total FROM boom_public_theme_install WHERE theme_id = '$theme_id'");
+	if($get && $get->num_rows > 0){
+		$res = $get->fetch_assoc();
+		return (int) $res['total'];
+	}
+	return 0;
+}
+function publicThemeSaveRating($theme_id, $user_id, $rate_value){
+	global $mysqli;
+	$theme_id = (int) $theme_id;
+	$user_id = (int) $user_id;
+	$rate_value = (int) $rate_value;
+	if($theme_id < 1 || $user_id < 1 || $rate_value < 1 || $rate_value > 5){
+		return false;
+	}
+	ensurePublicThemeRateTable();
+	$now = time();
+	$mysqli->query("INSERT INTO boom_public_theme_rate (theme_id, user_id, rate_value, rate_time)
+		VALUES ('$theme_id', '$user_id', '$rate_value', '$now')
+		ON DUPLICATE KEY UPDATE rate_value = '$rate_value', rate_time = '$now'");
+	return true;
+}
+function publicThemeUserRating($theme_id, $user_id){
+	global $mysqli;
+	$theme_id = (int) $theme_id;
+	$user_id = (int) $user_id;
+	if($theme_id < 1 || $user_id < 1){
+		return 0;
+	}
+	ensurePublicThemeRateTable();
+	$get = $mysqli->query("SELECT rate_value FROM boom_public_theme_rate WHERE theme_id = '$theme_id' AND user_id = '$user_id' LIMIT 1");
+	if($get && $get->num_rows > 0){
+		$res = $get->fetch_assoc();
+		return (int) $res['rate_value'];
+	}
+	return 0;
+}
+function publicThemeRatingStats($theme_id){
+	global $mysqli;
+	$theme_id = (int) $theme_id;
+	$stats = [
+		'avg' => 0,
+		'count' => 0,
+	];
+	if($theme_id < 1){
+		return $stats;
+	}
+	ensurePublicThemeRateTable();
+	$get = $mysqli->query("SELECT COUNT(*) AS total, IFNULL(ROUND(AVG(rate_value), 2), 0) AS avg_rate FROM boom_public_theme_rate WHERE theme_id = '$theme_id'");
+	if($get && $get->num_rows > 0){
+		$res = $get->fetch_assoc();
+		$stats['count'] = (int) $res['total'];
+		$stats['avg'] = (float) $res['avg_rate'];
+	}
+	return $stats;
 }
 function publicThemeCanPublish($user = []){
 	if(!empty($user) && isset($user['user_rank'])){
@@ -2422,15 +2548,43 @@ function publicThemeNormalizeBackground($background){
 	if($background === ''){
 		return '';
 	}
+	$background = str_replace('\\', '/', $background);
 	if(strpos($background, BOOM_DOMAIN) === 0){
-		$background = str_replace(BOOM_DOMAIN, '', $background);
+		$background = substr($background, strlen(BOOM_DOMAIN));
 	}
 	$background = ltrim($background, '/');
+	$marker = '';
+	$marker_pos = false;
+	$markers = ['upload/theme_public/', 'theme_public/'];
+	foreach($markers as $m){
+		$pos = strpos($background, $m);
+		if($pos !== false){
+			$marker = $m;
+			$marker_pos = $pos;
+			break;
+		}
+	}
+	if($marker_pos === false){
+		return '';
+	}
+	$background = substr($background, $marker_pos);
 	if(strpos($background, '..') !== false){
 		return '';
 	}
-	if(strpos($background, 'theme_public/') !== 0){
+	if($marker !== '' && strpos($background, $marker) !== 0){
 		return '';
+	}
+	if(strpos($background, 'theme_public/') === 0 && strpos($background, 'upload/theme_public/') !== 0){
+		$upload_candidate = 'upload/' . $background;
+		if(file_exists(BOOM_PATH . '/' . $upload_candidate)){
+			$background = $upload_candidate;
+		}
+	}
+	if(strpos($background, 'upload/theme_public/') === 0 && !file_exists(BOOM_PATH . '/' . $background)){
+		$legacy_candidate = substr($background, 7);
+		if($legacy_candidate !== false && file_exists(BOOM_PATH . '/' . $legacy_candidate)){
+			$background = $legacy_candidate;
+		}
 	}
 	if(!file_exists(BOOM_PATH . '/' . $background)){
 		return '';
@@ -2442,7 +2596,39 @@ function publicThemeBackgroundUrl($background){
 	if($background === ''){
 		return '';
 	}
-	return BOOM_DOMAIN . $background;
+	return publicThemeWebBaseUrl() . ltrim($background, '/');
+}
+function publicThemeWebBaseUrl(){
+	if(BOOM_DOMAIN !== ''){
+		return rtrim(BOOM_DOMAIN, '/') . '/';
+	}
+	$script = isset($_SERVER['SCRIPT_NAME']) ? str_replace('\\', '/', (string) $_SERVER['SCRIPT_NAME']) : '';
+	if($script !== ''){
+		$system_pos = strpos($script, '/system/');
+		if($system_pos !== false){
+			$root = substr($script, 0, $system_pos);
+			if($root === ''){
+				return '/';
+			}
+			return rtrim($root, '/') . '/';
+		}
+		$dir = str_replace('\\', '/', dirname($script));
+		if($dir === '' || $dir === '.' || $dir === '\\'){
+			return '/';
+		}
+		return rtrim($dir, '/') . '/';
+	}
+	return '/';
+}
+function publicThemeBackgroundCssUrl($background){
+	$background = publicThemeNormalizeBackground($background);
+	if($background === ''){
+		return '';
+	}
+	if(BOOM_DOMAIN !== ''){
+		return BOOM_DOMAIN . $background;
+	}
+	return '../../../' . $background;
 }
 function publicThemeConfigFromRow($row){
 	if(!is_array($row) || empty($row)){
@@ -2471,11 +2657,46 @@ function publicThemeGetByUser($user_id){
 		return [];
 	}
 	ensurePublicThemeTable();
-	$get = $mysqli->query("SELECT * FROM boom_public_theme WHERE theme_user = '$user_id' LIMIT 1");
+	$get = $mysqli->query("SELECT * FROM boom_public_theme WHERE theme_user = '$user_id' ORDER BY theme_updated DESC, theme_id DESC LIMIT 1");
 	if($get && $get->num_rows > 0){
 		return $get->fetch_assoc();
 	}
 	return [];
+}
+function publicThemeGetUserThemeById($user_id, $theme_id){
+	global $mysqli;
+	$user_id = (int) $user_id;
+	$theme_id = (int) $theme_id;
+	if($user_id < 1 || $theme_id < 1){
+		return [];
+	}
+	ensurePublicThemeTable();
+	$get = $mysqli->query("SELECT * FROM boom_public_theme WHERE theme_id = '$theme_id' AND theme_user = '$user_id' LIMIT 1");
+	if($get && $get->num_rows > 0){
+		return $get->fetch_assoc();
+	}
+	return [];
+}
+function publicThemeGetUserThemes($user_id, $limit = 50){
+	global $mysqli;
+	$user_id = (int) $user_id;
+	$limit = (int) $limit;
+	if($user_id < 1){
+		return [];
+	}
+	if($limit < 1){
+		$limit = 1;
+	}
+	if($limit > 100){
+		$limit = 100;
+	}
+	ensurePublicThemeTable();
+	$list = [];
+	$get = $mysqli->query("SELECT * FROM boom_public_theme WHERE theme_user = '$user_id' ORDER BY theme_updated DESC, theme_id DESC LIMIT $limit");
+	if($get){
+		$list = $get->fetch_all(MYSQLI_ASSOC);
+	}
+	return $list;
 }
 function publicThemeGetById($theme_id){
 	global $mysqli;
@@ -2508,7 +2729,7 @@ function publicThemeRgba($hex, $alpha){
 }
 function publicThemeBuildCss($config, $background = '', $custom_css = ''){
 	$config = publicThemeSanitizeConfig($config);
-	$background = publicThemeBackgroundUrl($background);
+	$background = publicThemeBackgroundCssUrl($background);
 	$custom_css = publicThemeSanitizeCss($custom_css);
 
 	$header_bg = $config['header_bg'];
@@ -2537,7 +2758,7 @@ function publicThemeBuildCss($config, $background = '', $custom_css = ''){
 	$sheet .= " }\n";
 	$sheet .= "input, textarea, .post_input_container { background: {$input_bg}; border: 1px solid {$line_soft} !important; color: {$chat_text}; }\n";
 	$sheet .= ".setdef, .default_color, .user { color: {$chat_text}; }\n";
-	$sheet .= ".bhead, .bsidebar, .modal_top, .pro_top, .bfoot, .foot, .back_pmenu, .back_ptop { background: {$header_bg}; color: {$header_text}; }\n";
+	$sheet .= ".bhead, .bsidebar, .modal_top, .pro_top, .bfoot, .foot, .back_pmenu, .back_ptop { background: {$header_bg}; color: {$header_text}; fill: {$header_text}; }\n";
 	$sheet .= ".theme_color, .menui, .subi { color: {$accent}; }\n";
 	$sheet .= ".theme_btn, .back_theme, .my_notice { background: {$accent}; color: {$header_text}; }\n";
 	$sheet .= ".default_btn, .back_default, .defaultd_btn, .send_btn { background: {$default_btn}; color: {$header_text}; }\n";
@@ -2648,6 +2869,14 @@ function chatEffectList(){
 		14 => ['title' => 'Comet Rush', 'price' => 2600, 'class' => 'cefx_14', 'desc' => 'Comet trail streak'],
 		15 => ['title' => 'Echo Prism', 'price' => 3200, 'class' => 'cefx_15', 'desc' => 'Layered prism echo'],
 		16 => ['title' => 'Duel Breaker', 'price' => 5000, 'class' => 'cefx_16 cefx_link', 'desc' => '2D strike that hits the previous message'],
+		17 => ['title' => 'Phantom Blink', 'price' => 5600, 'class' => 'cefx_17', 'desc' => 'Ghost blur blink-in'],
+		18 => ['title' => 'Orbit Spin', 'price' => 6400, 'class' => 'cefx_18', 'desc' => '3D orbit spin landing'],
+		19 => ['title' => 'Glitch Cut', 'price' => 7300, 'class' => 'cefx_19', 'desc' => 'RGB glitch strike'],
+		20 => ['title' => 'Nova Pulse', 'price' => 8200, 'class' => 'cefx_20', 'desc' => 'Nova flash shock ring'],
+		21 => ['title' => 'Meteor Drop', 'price' => 9200, 'class' => 'cefx_21', 'desc' => 'Meteor dive rebound'],
+		22 => ['title' => 'Time Warp', 'price' => 10300, 'class' => 'cefx_22', 'desc' => 'Time warp snap-back'],
+		23 => ['title' => 'Hyper Flip', 'price' => 11600, 'class' => 'cefx_23', 'desc' => 'Hyper flip impact'],
+		24 => ['title' => 'Chain Impact', 'price' => 13000, 'class' => 'cefx_24 cefx_link', 'desc' => 'Impact that hits the previous message'],
 	];
 }
 function validChatEffect($effect){

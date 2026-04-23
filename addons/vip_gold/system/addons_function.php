@@ -8,7 +8,7 @@ function useVip(){
 	}
 }
 function vipValidPlan($plan){
-	$valid = array(1,2,3,4,5);
+	$valid = array(1,2,3,4,5,6,7,8,9);
 	if(in_array($plan, $valid)){
 		return true;
 	}
@@ -20,7 +20,24 @@ function validVipPrice($v){
 }
 function vipPrice($plan){
 	global $addons;
-	return $addons['custom' . $plan];
+	switch($plan){
+		case 1:
+		case 2:
+		case 3:
+		case 4:
+		case 5:
+			return $addons['custom' . $plan];
+		case 6:
+			return (isset($addons['custom7']) && is_numeric($addons['custom7'])) ? $addons['custom7'] : 10;
+		case 7:
+			return (isset($addons['custom8']) && is_numeric($addons['custom8'])) ? $addons['custom8'] : 15;
+		case 8:
+			return (isset($addons['custom9']) && is_numeric($addons['custom9'])) ? $addons['custom9'] : 30;
+		case 9:
+			return (isset($addons['custom10']) && is_numeric($addons['custom10'])) ? $addons['custom10'] : 60;
+		default:
+			return 0;
+	}
 }
 function vipPlanName($plan){
 	global $lang;
@@ -41,6 +58,14 @@ function vipNewTime($plan, $user){
 		case 4:
 			return strtotime('+12 month', $ctime);
 		case 5:
+			return 2147483647;
+		case 6:
+			return strtotime('+1 month', $ctime);
+		case 7:
+			return strtotime('+3 month', $ctime);
+		case 8:
+			return strtotime('+12 month', $ctime);
+		case 9:
 			return 2147483647;
 		default:
 			return $user['vip_end'];

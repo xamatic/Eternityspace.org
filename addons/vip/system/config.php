@@ -66,6 +66,25 @@ if(!canManageAddons()){
 					<p class="label"><?php echo $lang['vip_plan5']; ?></p>
 					<input id="set_plan5" class="full_input" value="<?php echo $addons['custom5']; ?>" type="text"/>
 				</div>
+				<div class="vpad15">
+					<p class="text_large bold"><?php echo $lang['vip_tier_star']; ?></p>
+				</div>
+				<div class="setting_element">
+					<p class="label"><?php echo $lang['vip_plan6']; ?></p>
+					<input id="set_plan6" class="full_input" value="<?php echo vipPrice(6); ?>" type="text"/>
+				</div>
+				<div class="setting_element">
+					<p class="label"><?php echo $lang['vip_plan7']; ?></p>
+					<input id="set_plan7" class="full_input" value="<?php echo vipPrice(7); ?>" type="text"/>
+				</div>
+				<div class="setting_element">
+					<p class="label"><?php echo $lang['vip_plan8']; ?></p>
+					<input id="set_plan8" class="full_input" value="<?php echo vipPrice(8); ?>" type="text"/>
+				</div>
+				<div class="setting_element">
+					<p class="label"><?php echo $lang['vip_plan9']; ?></p>
+					<input id="set_plan9" class="full_input" value="<?php echo vipPrice(9); ?>" type="text"/>
+				</div>
 				<button id="save_vip_plan" onclick="saveVip();" type="button" class="tmargin10 reg_button theme_btn"><i class="fa fa-floppy-o"></i> <?php echo $lang['save']; ?></button>
 			</div>
 			<div id="vip_manage" class="tab_zone hide_zone">
@@ -241,6 +260,10 @@ if(!canManageAddons()){
 						plan3: $('#set_plan3').val(),
 						plan4: $('#set_plan4').val(),
 						plan5: $('#set_plan5').val(),
+						plan6: $('#set_plan6').val(),
+						plan7: $('#set_plan7').val(),
+						plan8: $('#set_plan8').val(),
+						plan9: $('#set_plan9').val(),
 						paypal_mode: $('#set_paypal_mode').val(),
 						paypal_id: $('#set_paypal_id').val(),
 						paypal_secret: $('#set_paypal_secret').val(),

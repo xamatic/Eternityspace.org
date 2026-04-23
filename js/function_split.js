@@ -224,6 +224,26 @@ isRoomStaff = function(rnk){
 		return false;
 	}
 }
+clearLargeModalFxClasses = function(){
+	var classRegex = /\bpfx_[a-z]{2}_[0-9]+\b/g;
+	$('#large_modal_in, #large_modal_content').each(function(){
+		var classes = (this.className || '').match(classRegex);
+		if(classes && classes.length){
+			$(this).removeClass(classes.join(' '));
+		}
+	});
+}
+syncLargeModalFxClasses = function(){
+	clearLargeModalFxClasses();
+	var wrap = $('#large_modal_content .profile_wrap').first();
+	if(!wrap.length){
+		return;
+	}
+	var classes = (wrap.attr('class') || '').match(/\bpfx_[a-z]{2}_[0-9]+\b/g);
+	if(classes && classes.length){
+		$('#large_modal_in, #large_modal_content').addClass(classes.join(' '));
+	}
+}
 showModal = function(r,s){
 	hideAll();
 	hideModal();
@@ -251,6 +271,7 @@ showEmptyModal = function(r,s){
 	}
 	$('.large_modal_in').css('max-width', s+'px');
 	$('#large_modal_content').html(r);
+	syncLargeModalFxClasses();
 	$('#large_modal').show();
 	offScroll();
 	modalTop();
@@ -303,6 +324,7 @@ topModal = function(r,s){
 }
 hideModal = function(){
 	stopProMusic();
+	clearLargeModalFxClasses();
 	$('#small_modal_content, #large_modal_content').html('');
 	$('#small_modal, #large_modal').hide();
 	onScroll();

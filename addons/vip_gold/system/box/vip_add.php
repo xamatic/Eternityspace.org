@@ -18,6 +18,10 @@ if(!canManageAddons()){
 			<option  value="3"><?php echo $lang['vplan3']; ?></option>
 			<option  value="4"><?php echo $lang['vplan4']; ?></option>
 			<option  value="5"><?php echo $lang['vplan5']; ?></option>
+			<option  value="6"><?php echo $lang['vplan6']; ?></option>
+			<option  value="7"><?php echo $lang['vplan7']; ?></option>
+			<option  value="8"><?php echo $lang['vplan8']; ?></option>
+			<option  value="9"><?php echo $lang['vplan9']; ?></option>
 		</select>
 	</div>
 </div>

@@ -708,14 +708,13 @@ adjustHeight = function(){
 	}
 	else {
 		$("#chat_left").removeClass("cleft").addClass("cleft2");
-		$("#chat_left").css("top", headHeight);
+		$("#chat_left").css("top", "0px");
 	}
 	if(winWidth > rightHide){
 		$("#chat_right").removeClass("cright2").addClass("cright").css("display", "table-cell");
 	}
 	else {
 		$("#chat_right").removeClass("cright").addClass("cright2");
-		$("#chat_right").css("top", headHeight);
 	}
 	if(winWidth < 801){
 		if($('.ppanel:visible').length){

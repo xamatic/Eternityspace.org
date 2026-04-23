@@ -18,6 +18,10 @@ function saveVipConfig(){
 	$plan3 = escape($_POST['plan3']);
 	$plan4 = escape($_POST['plan4']);
 	$plan5 = escape($_POST['plan5']);
+	$plan6 = escape($_POST['plan6']);
+	$plan7 = escape($_POST['plan7']);
+	$plan8 = escape($_POST['plan8']);
+	$plan9 = escape($_POST['plan9']);
 
 	if(!is_numeric($plan1)){
 		return 0;
@@ -34,6 +38,18 @@ function saveVipConfig(){
 	if(!is_numeric($plan5)){
 		return 0;
 	}
+	if(!is_numeric($plan6)){
+		return 0;
+	}
+	if(!is_numeric($plan7)){
+		return 0;
+	}
+	if(!is_numeric($plan8)){
+		return 0;
+	}
+	if(!is_numeric($plan9)){
+		return 0;
+	}
 	if($paypal_secret == '' || $paypal_id == ''){
 		$paypal_mode = 0;
 	}
@@ -42,10 +58,15 @@ function saveVipConfig(){
 	$plan3 = vipFormat(escape($_POST['plan3']), $currency);
 	$plan4 = vipFormat(escape($_POST['plan4']), $currency);
 	$plan5 = vipFormat(escape($_POST['plan5']), $currency);
+	$plan6 = vipFormat(escape($_POST['plan6']), $currency);
+	$plan7 = vipFormat(escape($_POST['plan7']), $currency);
+	$plan8 = vipFormat(escape($_POST['plan8']), $currency);
+	$plan9 = vipFormat(escape($_POST['plan9']), $currency);
+	$star_data = $plan6 . '|' . $plan7 . '|' . $plan8 . '|' . $plan9;
 	$mysqli->query("
 	UPDATE boom_addons SET 
 	custom1 = '$plan1', custom2 = '$plan2', custom3 = '$plan3', custom4 = '$plan4', custom5 = '$plan5',
-	custom6 = '$paypal_mode', custom7 = '$currency', custom9 = '$paypal_id', custom10 = '$paypal_secret'
+	custom6 = '$paypal_mode', custom7 = '$currency', custom8 = '$star_data', custom9 = '$paypal_id', custom10 = '$paypal_secret'
 	WHERE addons = 'vip'
 	");
 	redisUpdateAddons('vip');
@@ -75,7 +96,7 @@ function vipAddUserPlan(){
 	}
 	require(vipLang($user));
 	$new_time = vipNewTime($plan, $user);
-	if($plan == 5){
+	if($plan == 5 || $plan == 9){
 		$message = escape($lang['vip_gift2']);
 	}
 	else {
@@ -169,7 +190,7 @@ function vipSearchUser(){
 		return emptyZone($lang['empty']);
 	}
 }
-if(isset($_POST['plan1'], $_POST['plan2'], $_POST['plan3'], $_POST['plan4'], $_POST['plan5'], $_POST['paypal_id'], $_POST['paypal_secret'], $_POST['currency'], $_POST['paypal_mode'])){
+if(isset($_POST['plan1'], $_POST['plan2'], $_POST['plan3'], $_POST['plan4'], $_POST['plan5'], $_POST['plan6'], $_POST['plan7'], $_POST['plan8'], $_POST['plan9'], $_POST['paypal_id'], $_POST['paypal_secret'], $_POST['currency'], $_POST['paypal_mode'])){
 	echo saveVipConfig();
 	die();
 }

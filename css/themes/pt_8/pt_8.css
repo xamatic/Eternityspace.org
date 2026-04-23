@@ -1,0 +1,19 @@
+@import url('../Lite/Lite.css');
+a { color: #4A4A4A; }
+body { background: #000000; color: #FFFFFF; background-image: url('../../../upload/theme_public/ptbg_user1_a802ad93d913.png'); background-size: cover; background-position: center center; background-attachment: fixed; }
+input, textarea, .post_input_container { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14) !important; color: #FFFFFF; }
+.setdef, .default_color, .user { color: #FFFFFF; }
+.bhead, .bsidebar, .modal_top, .pro_top, .bfoot, .foot, .back_pmenu, .back_ptop { background: #111827; color: #FFFFFF; fill: #FFFFFF; }
+.theme_color, .menui, .subi { color: #4A4A4A; }
+.theme_btn, .back_theme, .my_notice { background: #4A4A4A; color: #FFFFFF; }
+.default_btn, .back_default, .defaultd_btn, .send_btn { background: #000000; color: #FFFFFF; }
+.backglob, .back_chat, .back_priv, .back_panel, .back_menu, .back_box, .back_input, .back_modal, .page_element, .back_quote { background: rgba(0,0,0,0.3); color: #FFFFFF; }
+.mbubble, .hunter_private, .targ_quote, .reply_item, .cquote { background: rgba(0,43,112,0.4); color: #FFFFFF; }
+.my_log, .target_private, .hunt_quote { background: #002B70; color: #FFFFFF; }
+.chat_system, .sub_text, .sub_date, .input_item { color: rgba(255,255,255,0.14); }
+.bback, .bbackhover, .modal_mback { background: rgba(255,255,255,0.06); }
+.bhover:hover, .bhoverr:hover, .bbackhover:hover, .blisting:hover, .submenu:hover, .bmenu:hover, .bpmenu:hover, .bsub:hover { background: rgba(255,255,255,0.1); }
+.bborder, .tborder, .lborder, .rborder, .fborder, .blisting, .blist, .float_top, .float_ctop, .modal_mborder { border-color: rgba(255,255,255,0.14); }
+.bshadow, .page_element, .float_menu, .btnshadow, .pboxed, .tab_menu { box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+.modal_back { background-color: rgba(0,0,0,0.55); }
+.backglob, .back_chat, .back_priv, .back_panel, .back_menu, .back_box, .back_input, .back_modal, .page_element, .back_quote { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }

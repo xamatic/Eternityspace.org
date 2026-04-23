@@ -33,6 +33,7 @@ $ad = array(
 	'custom5'=> '200.00',
 	'custom6'=> 0,
 	'custom7'=> 'USD',
+	'custom8'=> '10.00|15.00|30.00|60.00',
 	);
 	
 $install_vip = vipInstallation();	

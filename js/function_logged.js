@@ -600,21 +600,169 @@ getPublicThemeHub = function(){
 }
 showPublicThemeMarket = function(){
 	$('#public_theme_view_builder').addClass('fhide');
+	$('#public_theme_view_moderator').addClass('fhide')
 	$('#public_theme_view_market').removeClass('fhide');
 	$('#public_theme_nav_builder').removeClass('theme_btn active').addClass('default_btn');
+	$('#public_theme_nav_moderator').removeClass('theme_btn active').addClass('default_btn');
 	$('#public_theme_nav_market').removeClass('default_btn').addClass('theme_btn active');
+	sortPublicThemeCards();
+}
+
+sortPublicThemeCards = function(mode){
+	var sortMode = mode || ($('#public_theme_sort_mode').val() || 'installs');
+	$('.public_theme_card_grid').each(function(){
+		var grid = $(this);
+		var cards = grid.children('.public_theme_card').get();
+		cards.sort(function(a, b){
+			var $a = $(a);
+			var $b = $(b);
+			if(sortMode == 'name'){
+				var an = String($a.attr('data-name') || '').toLowerCase();
+				var bn = String($b.attr('data-name') || '').toLowerCase();
+				if(an < bn){ return -1; }
+				if(an > bn){ return 1; }
+				return 0;
+			}
+			if(sortMode == 'recent'){
+				return (parseInt($b.attr('data-reviewed'), 10) || 0) - (parseInt($a.attr('data-reviewed'), 10) || 0);
+			}
+			if(sortMode == 'rating'){
+				var br = parseFloat($b.attr('data-rating')) || 0;
+				var ar = parseFloat($a.attr('data-rating')) || 0;
+				if(br !== ar){
+					return br - ar;
+				}
+				var brc = parseInt($b.attr('data-rate-count'), 10) || 0;
+				var arc = parseInt($a.attr('data-rate-count'), 10) || 0;
+				return brc - arc;
+			}
+			return (parseInt($b.attr('data-installs'), 10) || 0) - (parseInt($a.attr('data-installs'), 10) || 0);
+		});
+		grid.append(cards);
+	});
+}
+refreshPublicThemeStars = function(themeId, myRate){
+	myRate = parseInt(myRate, 10) || 0;
+	$('.public_theme_rate_row[data-theme-id="' + themeId + '"]').each(function(){
+		var row = $(this);
+		row.attr('data-my-rate', myRate);
+		row.find('.public_theme_rate_star').each(function(index){
+			var star = $(this);
+			if((index + 1) <= myRate){
+				star.addClass('active');
+			}
+			else {
+				star.removeClass('active');
+			}
+		});
+	});
+}
+updatePublicThemeRatingDisplay = function(themeId, avg, count, myRate){
+	var avgText = (parseFloat(avg) || 0).toFixed(1);
+	count = parseInt(count, 10) || 0;
+	$('.public_theme_card[data-theme-id="' + themeId + '"]').each(function(){
+		var card = $(this);
+		card.attr('data-rating', avgText);
+		card.attr('data-rate-count', count);
+		card.find('.public_theme_rating_avg').text(avgText);
+		card.find('.public_theme_rating_count').text('(' + count + ')');
+	});
+	refreshPublicThemeStars(themeId, myRate);
+	sortPublicThemeCards();
+}
+updatePublicThemeInstallDisplay = function(themeId, installs, markInstalled){
+	installs = parseInt(installs, 10) || 0;
+	$('.public_theme_card[data-theme-id="' + themeId + '"]').each(function(){
+		var card = $(this);
+		card.attr('data-installs', installs);
+		card.find('.public_theme_install_count').text(installs);
+		if(markInstalled){
+			if(!card.find('.public_theme_installed_tag').length){
+				card.find('.public_theme_card_meta').append('<div class="public_theme_installed_tag">Installed</div>');
+			}
+		}
+	});
+	sortPublicThemeCards();
+}
+ratePublicTheme = function(themeId, rateValue){
+	themeId = parseInt(themeId, 10);
+	rateValue = parseInt(rateValue, 10);
+	if(!themeId || !rateValue || rateValue < 1 || rateValue > 5){
+		return;
+	}
+	$.post('system/action/action_public_theme.php', {
+		rate_public_theme: 1,
+		theme_id: themeId,
+		theme_rate: rateValue,
+	}, function(response){
+		if(response.code == 1){
+			updatePublicThemeRatingDisplay(themeId, response.rate_avg, response.rate_count, response.my_rate);
+			callSuccess('Rating saved.');
+		}
+		else if(response.code == 2){
+			callError('Theme not available.');
+		}
+		else if(response.code == 3){
+			callError('Choose a rating from 1 to 5.');
+		}
+		else {
+			callError(system.error);
+		}
+	}, 'json');
 }
 showPublicThemeBuilder = function(){
 	if(!$('#public_theme_view_builder').length){
 		return;
 	}
 	$('#public_theme_view_market').addClass('fhide');
+	$('#public_theme_view_moderator').addClass('fhide');
 	$('#public_theme_view_builder').removeClass('fhide');
+	$('#public_theme_nav_moderator').removeClass('theme_btn active').addClass('default_btn');
 	$('#public_theme_nav_market').removeClass('theme_btn active').addClass('default_btn');
 	$('#public_theme_nav_builder').removeClass('default_btn').addClass('theme_btn active');
 	setTimeout(function(){
 		initPublicThemeBuilder();
 	}, 20);
+}
+
+showPublicThemeModeration = function(){
+	$('#public_theme_view_builder').addClass('fhide');
+	$('#public_theme_view_market').addClass('fhide');
+	$('#public_theme_view_moderator').removeClass('fhide');
+	$('#public_theme_nav_builder').removeClass('theme_btn active').addClass('default_btn');
+	$('#public_theme_nav_market').removeClass('theme_btn active').addClass('default_btn');
+	$('#public_theme_nav_moderator').removeClass('default_btn').addClass('theme_btn active');
+}
+
+openPublicThemeBuilderTheme = function(themeId){
+	themeId = parseInt(themeId, 10);
+	if(isNaN(themeId) || themeId < 1){
+		return;
+	}
+	if(typeof getPublicThemeLeft === 'function'){
+		getPublicThemeLeft('builder', themeId, 0);
+		return;
+	}
+	getPublicThemeHub();
+}
+openNewPublicThemeBuilder = function(){
+	if(typeof getPublicThemeLeft === 'function'){
+		getPublicThemeLeft('builder', 0, 1);
+		return;
+	}
+	getPublicThemeHub();
+}
+editOwnedPublicTheme = function(themeId){
+	themeId = parseInt(themeId, 10);
+	if(!themeId){
+		return;
+	}
+	if(typeof getPublicThemeLeft === 'function'){
+		callSuccess('Editing this theme will overwrite it. Submit to send the update back to moderation.');
+		getPublicThemeLeft('builder', themeId, 0, 1);
+		return;
+	}
+	getPublicThemeHub();
 }
 publicThemeIsLocked = function(){
 	if(!$('#public_theme_builder').length){
@@ -665,8 +813,21 @@ publicThemeCssSafe = function(css){
 	}
 	return css;
 }
+publicThemeResolveBackground = function(background){
+	background = $.trim(String(background || ''));
+	if(background == ''){
+		return '';
+	}
+	var link = document.createElement('a');
+	link.href = background;
+	return link.href;
+}
 collectPublicThemeData = function(){
 	var themeName = $.trim($('#public_theme_name').val());
+	var themeId = parseInt($('#public_theme_id').val(), 10);
+	if(isNaN(themeId) || themeId < 1){
+		themeId = 0;
+	}
 	if(themeName.length > 32){
 		themeName = themeName.substring(0, 32);
 	}
@@ -674,6 +835,8 @@ collectPublicThemeData = function(){
 		themeName = 'My Public Theme';
 	}
 	return {
+		theme_id: themeId,
+		overwrite_theme: parseInt($('#public_theme_overwrite').val(), 10) || 0,
 		theme_name: themeName,
 		header_bg: publicThemeColor($('#public_theme_header_bg').val(), '#111827'),
 		header_text: publicThemeColor($('#public_theme_header_text').val(), '#FFFFFF'),
@@ -694,7 +857,7 @@ buildPublicThemeLiveCss = function(theme){
 	var lineSoft = publicThemeHexToRgba(theme.header_text, 0.14);
 	var hoverSoft = publicThemeHexToRgba(theme.header_text, 0.10);
 	var inputBg = publicThemeHexToRgba(theme.header_text, 0.06);
-	var bg = String(theme.theme_background || '').replace(/'/g, '%27');
+	var bg = String(publicThemeResolveBackground(theme.theme_background) || '').replace(/'/g, '%27');
 	var css = '';
 	css += '@import url("css/themes/Lite/Lite.css' + bbfv + '");';
 	css += 'a{color:' + theme.accent + ';}';
@@ -705,7 +868,7 @@ buildPublicThemeLiveCss = function(theme){
 	css += '}';
 	css += 'input,textarea,.post_input_container{background:' + inputBg + ';border:1px solid ' + lineSoft + ' !important;color:' + theme.chat_text + ';}';
 	css += '.setdef,.default_color,.user{color:' + theme.chat_text + ';}';
-	css += '.bhead,.bsidebar,.modal_top,.pro_top,.bfoot,.foot,.back_pmenu,.back_ptop{background:' + theme.header_bg + ';color:' + theme.header_text + ';}';
+	css += '.bhead,.bsidebar,.modal_top,.pro_top,.bfoot,.foot,.back_pmenu,.back_ptop{background:' + theme.header_bg + ';color:' + theme.header_text + ';fill:' + theme.header_text + ';}';
 	css += '.theme_color,.menui,.subi{color:' + theme.accent + ';}';
 	css += '.theme_btn,.back_theme,.my_notice{background:' + theme.accent + ';color:' + theme.header_text + ';}';
 	css += '.default_btn,.back_default,.defaultd_btn,.send_btn{background:' + theme.default_btn + ';color:' + theme.header_text + ';}';
@@ -741,7 +904,8 @@ applyPublicThemeLivePreview = function(){
 	$('#public_theme_panel_opacity_value').text(theme.panel_opacity);
 	$('#public_theme_panel_blur_value').text(theme.panel_blur + 'px');
 	$('#public_theme_live_name').text(theme.theme_name);
-	$('#public_theme_bg_state').text(theme.theme_background != '' ? 'Background ready' : 'No background uploaded');
+	var bgUrl = publicThemeResolveBackground(theme.theme_background);
+	$('#public_theme_bg_state').text(bgUrl != '' ? 'Background ready' : 'No background uploaded');
 
 	var preview = $('#public_theme_live_preview');
 	if(preview.length){
@@ -754,14 +918,15 @@ applyPublicThemeLivePreview = function(){
 		preview.css('--pt-default', theme.default_btn);
 		preview.css('--pt-opacity', theme.panel_opacity);
 		preview.css('--pt-blur', parseInt(theme.panel_blur, 10) + 'px');
-		if(theme.theme_background != ''){
-			preview.css('--pt-bg-url', "url('" + String(theme.theme_background).replace(/'/g, '%27') + "')");
+		if(bgUrl != ''){
+			preview.css('--pt-bg-url', "url('" + String(bgUrl).replace(/'/g, '%27') + "')");
 		}
 		else {
 			preview.css('--pt-bg-url', 'none');
 		}
 	}
 }
+	
 initPublicThemeBuilder = function(){
 	if(!$('#public_theme_builder').length){
 		return;
@@ -770,13 +935,20 @@ initPublicThemeBuilder = function(){
 }
 savePublicThemeDraft = function(){
 	if(publicThemeIsLocked()){
-		callError('Approved themes are immutable.');
+		callError('Submitted themes are immutable.');
 		return;
 	}
 	var payload = collectPublicThemeData();
 	payload.save_public_theme = 1;
 	$.post('system/action/action_public_theme.php', payload, function(response){
 		if(response.code == 1){
+			if(response.theme_id){
+				$('#public_theme_id').val(response.theme_id);
+				$('#public_theme_builder').attr('data-theme-id', response.theme_id);
+			}
+			if(typeof response.locked !== 'undefined'){
+				$('#public_theme_builder').attr('data-locked', response.locked);
+			}
 			callSuccess('Draft saved.');
 		}
 		else if(response.code == 2){
@@ -786,7 +958,7 @@ savePublicThemeDraft = function(){
 			callError('VIP or higher rank is required to publish.');
 		}
 		else if(response.code == 5){
-			callError('Approved themes are immutable.');
+			callError('Submitted themes are immutable.');
 		}
 		else {
 			callError(system.error);
@@ -795,7 +967,7 @@ savePublicThemeDraft = function(){
 }
 submitPublicTheme = function(){
 	if(publicThemeIsLocked()){
-		callError('Approved themes are immutable.');
+		callError('Submitted themes are immutable.');
 		return;
 	}
 	var payload = collectPublicThemeData();
@@ -817,7 +989,7 @@ submitPublicTheme = function(){
 			callError('VIP or higher rank is required to publish.');
 		}
 		else if(response.code == 5){
-			callError('Approved themes are immutable.');
+			callError('Submitted themes are immutable.');
 		}
 		else {
 			callError(system.error);
@@ -826,7 +998,7 @@ submitPublicTheme = function(){
 }
 uploadPublicThemeBackground = function(){
 	if(publicThemeIsLocked()){
-		callError('Approved themes are immutable.');
+		callError('Submitted themes are immutable.');
 		return;
 	}
 	var input = $('#public_theme_bg_file')[0];
@@ -834,10 +1006,16 @@ uploadPublicThemeBackground = function(){
 		callError('Select an image file first.');
 		return;
 	}
+	var themeId = parseInt($('#public_theme_id').val(), 10);
+	if(isNaN(themeId) || themeId < 1){
+		themeId = 0;
+	}
 	var fd = new FormData();
 	fd.append('upload_public_theme_bg', 1);
 	fd.append('token', utk);
 	fd.append('cp', curPage);
+	fd.append('theme_id', themeId);
+	fd.append('overwrite_theme', parseInt($('#public_theme_overwrite').val(), 10) || 0);
 	fd.append('theme_background_file', input.files[0]);
 	$.ajax({
 		url: 'system/action/action_public_theme.php',
@@ -848,7 +1026,8 @@ uploadPublicThemeBackground = function(){
 		contentType: false,
 		success: function(response){
 			if(response.code == 1){
-				$('#public_theme_bg').val(response.background);
+				var bgValue = response.background ? response.background : response.url;
+				$('#public_theme_bg').val(bgValue);
 				$('#public_theme_bg_file').val('');
 				applyPublicThemeLivePreview();
 				callSuccess('Background uploaded.');
@@ -859,6 +1038,9 @@ uploadPublicThemeBackground = function(){
 			else if(response.code == 4){
 				callError('VIP or higher rank is required to publish.');
 			}
+			else if(response.code == 5){
+				callError('Submitted themes are immutable.');
+			}
 			else {
 				callError(system.error);
 			}
@@ -868,9 +1050,18 @@ uploadPublicThemeBackground = function(){
 		}
 	});
 }
+choosePublicThemeBackground = function(){
+	if(publicThemeIsLocked()){
+		callError('Submitted themes are immutable.');
+		return;
+	}
+	if($('#public_theme_bg_file').length){
+		$('#public_theme_bg_file').trigger('click');
+	}
+}
 removePublicThemeBackground = function(){
 	if(publicThemeIsLocked()){
-		callError('Approved themes are immutable.');
+		callError('Submitted themes are immutable.');
 		return;
 	}
 	$('#public_theme_bg').val('');
@@ -887,6 +1078,9 @@ applyPublicTheme = function(themeId){
 			href += (href.indexOf('?') > -1 ? '&' : '?') + 'ptv=' + (response.tv ? response.tv : new Date().getTime());
 			$("#actual_theme").attr("href", href);
 			$('#main_logo').attr('src', response.logo);
+			if(response.theme_id && typeof response.installs !== 'undefined'){
+				updatePublicThemeInstallDisplay(response.theme_id, response.installs, true);
+			}
 			callSuccess('Theme applied.');
 		}
 		else if(response.code == 2){
@@ -963,6 +1157,9 @@ deletePublicTheme = function(themeId){
 }
 $(document).on('input change', '#public_theme_builder input, #public_theme_builder textarea', function(){
 	if($(this).attr('id') == 'public_theme_bg_file'){
+		if(this.files && this.files.length){
+			uploadPublicThemeBackground();
+		}
 		return;
 	}
 	applyPublicThemeLivePreview();

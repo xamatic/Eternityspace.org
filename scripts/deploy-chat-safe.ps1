@@ -219,7 +219,10 @@ rsync -a $RSYNC_DELETE_ARG \
   --exclude "gift/" \
   --exclude "error_log" \
   --exclude ".ftpquota" \
+  --exclude ".system/theme_public" \
+  --exclude ".system/upload/theme_public" \
   --exclude "compare_results.txt" \
+  --exclude "css/themes" \
   "$EXTRACT_PATH/" "$REMOTE_CHAT_PATH/"
 
 HEALTH_CODE="NA"

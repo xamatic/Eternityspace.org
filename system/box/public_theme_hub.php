@@ -34,7 +34,19 @@ if(!function_exists('publicThemePreviewVars')){
 $can_publish = publicThemeCanPublish($data);
 $can_moderate = publicThemeCanModerate($data);
 
-$my_theme = publicThemeGetByUser($data['user_id']);
+$my_themes = publicThemeGetUserThemes($data['user_id'], 60);
+$my_theme = [];
+$theme_id = 0;
+$builder_sub = 'Build and submit your public theme.';
+foreach($my_themes as $candidate){
+	if((int) $candidate['theme_status'] === 0 && (int) $candidate['theme_locked'] === 0){
+		$my_theme = $candidate;
+		break;
+	}
+}
+if(empty($my_theme)){
+	$my_theme = publicThemeGetByUser($data['user_id']);
+}
 $theme_name = 'My Public Theme';
 $theme_status = 0;
 $theme_locked = 0;
@@ -44,6 +56,7 @@ $theme_css = '';
 $theme_config = publicThemeDefaultConfig();
 
 if(!empty($my_theme)){
+	$theme_id = (int) $my_theme['theme_id'];
 	if(!empty($my_theme['theme_name'])){
 		$theme_name = $my_theme['theme_name'];
 	}
@@ -53,6 +66,7 @@ if(!empty($my_theme)){
 	$theme_background = publicThemeNormalizeBackground((string) $my_theme['theme_background']);
 	$theme_css = (string) $my_theme['theme_custom_css'];
 	$theme_config = publicThemeConfigFromRow($my_theme);
+	$builder_sub = 'Submitted themes are immutable. Start a new theme to keep creating.';
 }
 $lock_attr = ($theme_locked > 0) ? 'disabled="disabled"' : '';
 
@@ -84,22 +98,23 @@ if($can_moderate){
 			<div class="public_theme_head">
 				<div>
 					<div class="public_theme_head_title">Theme Publisher</div>
-					<div class="public_theme_head_sub">VIP and above can submit one public theme for approval.</div>
+					<div class="public_theme_head_sub"><?php echo $builder_sub; ?></div>
 				</div>
 				<div class="public_theme_status public_theme_status_<?php echo publicThemeStatusClass($theme_status); ?>">
 					<?php echo publicThemeStatusText($theme_status); ?>
 				</div>
 			</div>
 			<?php if($theme_locked > 0){ ?>
-			<div class="public_theme_lock_note">This theme is approved and immutable. Editing is disabled.</div>
+			<div class="public_theme_lock_note">This theme was submitted and is immutable. Start a new theme to make changes.</div>
 			<?php } else { ?>
-			<div class="public_theme_warn_note">Warning: once approved, this theme cannot be edited again.</div>
+			<div class="public_theme_warn_note">Warning: once submitted, this theme cannot be edited again.</div>
 			<?php } ?>
 			<?php if($theme_note != '' && $theme_status == 3){ ?>
 			<div class="public_theme_reject_note">Moderator note: <?php echo ptEsc($theme_note); ?></div>
 			<?php } ?>
 
-			<div id="public_theme_builder" data-locked="<?php echo $theme_locked; ?>">
+			<div id="public_theme_builder" data-locked="<?php echo $theme_locked; ?>" data-theme-id="<?php echo $theme_id; ?>">
+				<input id="public_theme_id" type="hidden" value="<?php echo (int) $theme_id; ?>"/>
 				<div class="public_theme_grid">
 					<div class="public_theme_group">
 						<p class="label">Theme name</p>
@@ -155,8 +170,9 @@ if($can_moderate){
 				<div class="public_theme_group">
 					<p class="label">Background image</p>
 					<input id="public_theme_bg" type="hidden" value="<?php echo ptEsc($theme_background); ?>"/>
-					<input id="public_theme_bg_file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" <?php echo $lock_attr; ?>/>
+					<input id="public_theme_bg_file" class="hidden" type="file" accept="image/png,image/jpeg,image/gif,image/webp" <?php echo $lock_attr; ?>/>
 					<div class="public_theme_bg_controls">
+						<button type="button" class="small_button default_btn" onclick="choosePublicThemeBackground();" <?php echo $lock_attr; ?>>Choose background image</button>
 						<button type="button" class="small_button theme_btn" onclick="uploadPublicThemeBackground();" <?php echo $lock_attr; ?>>Upload</button>
 						<button type="button" class="small_button default_btn" onclick="removePublicThemeBackground();" <?php echo $lock_attr; ?>>Remove</button>
 						<span id="public_theme_bg_state" class="sub_text"></span>
@@ -192,7 +208,7 @@ if($can_moderate){
 						<img src="<?php echo myAvatar($data['user_tumb']); ?>"/>
 						<div>
 							<div class="public_theme_live_user">System</div>
-							<div class="public_theme_live_bubble">Approved themes are immutable after moderation.</div>
+							<div class="public_theme_live_bubble">Submitted themes are immutable after moderation.</div>
 						</div>
 					</div>
 				</div>
@@ -216,6 +232,7 @@ if($can_moderate){
 					$config = publicThemeConfigFromRow($theme);
 					$style = publicThemePreviewVars($config, $theme['theme_background']);
 					$is_active = ($data['user_theme'] == $theme['theme_folder']) ? ' public_theme_card_active' : '';
+					$is_owner_theme = ((int) $theme['theme_user'] === (int) $data['user_id']);
 				?>
 				<div class="public_theme_card<?php echo $is_active; ?>" style="<?php echo ptEsc($style); ?>">
 					<div class="public_theme_card_top">
@@ -227,6 +244,9 @@ if($can_moderate){
 					</div>
 					<div class="public_theme_card_actions">
 						<button class="small_button theme_btn" onclick="applyPublicTheme(<?php echo (int) $theme['theme_id']; ?>);">Apply</button>
+						<?php if($is_owner_theme && $can_publish){ ?>
+						<button class="small_button default_btn" onclick="editOwnedPublicTheme(<?php echo (int) $theme['theme_id']; ?>);">Edit</button>
+						<?php } ?>
 						<?php if($is_active != ''){ ?><span class="public_theme_current">Current</span><?php } ?>
 					</div>
 				</div>
@@ -235,8 +255,10 @@ if($can_moderate){
 			<?php } ?>
 		</div>
 
-		<?php if($can_moderate){ ?>
-		<div class="public_theme_moderation fborder">
+
+		<div class="public_theme_moderator fborder">
+			<div class="public_theme_moderator_title">Published Community Themes</div>
+			<?php if($can_moderate){ ?>
 			<div class="public_theme_market_title">Moderation Queue</div>
 			<?php if(empty($pending)){ ?>
 			<div class="public_theme_empty">No pending submissions.</div>
@@ -268,6 +290,7 @@ if($can_moderate){
 			<?php } ?>
 		</div>
 		<?php } ?>
+		</div>
 	</div>
 </div>
 <div class="modal_control">

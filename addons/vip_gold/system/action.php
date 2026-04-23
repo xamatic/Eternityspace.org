@@ -88,13 +88,17 @@ function saveVipGold(){
 	$plan3 = round(escape($_POST['plan3'], true));
 	$plan4 = round(escape($_POST['plan4'], true));
 	$plan5 = round(escape($_POST['plan5'], true));
+	$plan6 = round(escape($_POST['plan6'], true));
+	$plan7 = round(escape($_POST['plan7'], true));
+	$plan8 = round(escape($_POST['plan8'], true));
+	$plan9 = round(escape($_POST['plan9'], true));
 	$status = escape($_POST['status'], true);
 
-	if(!validVipPrice($plan1) || !validVipPrice($plan2) || !validVipPrice($plan3) || !validVipPrice($plan4) || !validVipPrice($plan5)){
+	if(!validVipPrice($plan1) || !validVipPrice($plan2) || !validVipPrice($plan3) || !validVipPrice($plan4) || !validVipPrice($plan5) || !validVipPrice($plan6) || !validVipPrice($plan7) || !validVipPrice($plan8) || !validVipPrice($plan9)){
 		return 99;
 	}
 	
-	$mysqli->query("UPDATE boom_addons SET custom1 = '$plan1', custom2 = '$plan2', custom3 = '$plan3', custom4 = '$plan4', custom5 = '$plan5', custom6 = '$status' WHERE addons = 'vip_gold'");
+	$mysqli->query("UPDATE boom_addons SET custom1 = '$plan1', custom2 = '$plan2', custom3 = '$plan3', custom4 = '$plan4', custom5 = '$plan5', custom6 = '$status', custom7 = '$plan6', custom8 = '$plan7', custom9 = '$plan8', custom10 = '$plan9' WHERE addons = 'vip_gold'");
 	redisUpdateAddons('vip_gold');
 	return 1;
 }
@@ -110,7 +114,7 @@ if(isset($_POST['search_vip'])){
 	echo vipFindUserTransaction();
 	die();
 }
-if(isset($_POST['plan1'], $_POST['plan2'], $_POST['plan3'], $_POST['plan4'], $_POST['plan5'], $_POST['status'])){
+if(isset($_POST['plan1'], $_POST['plan2'], $_POST['plan3'], $_POST['plan4'], $_POST['plan5'], $_POST['plan6'], $_POST['plan7'], $_POST['plan8'], $_POST['plan9'], $_POST['status'])){
 	echo saveVipGold();
 	die();
 }

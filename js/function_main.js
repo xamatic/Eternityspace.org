@@ -44,16 +44,38 @@ var reactionMenuTarget = 0;
 var reactionEmojiCache = [];
 var reactionMenuLoading = 0;
 var reactionSyncLock = 0;
+var slashMenuLimit = 100;
 var slashCommandMatches = [];
 var slashCommandActive = 0;
+var slashInputTarget = '#content';
 var slashCommands = [
-	{ command: '/topic', desc: 'Set room topic', usage: '/topic your text', insert: '/topic ' },
-	{ command: '/clear', desc: 'Clear room messages', usage: '/clear', insert: '/clear' },
-	{ command: '/logout', desc: 'Force logout user (owner)', usage: '/logout username', insert: '/logout ', ownerOnly: 1 },
-	{ command: '/clearcache', desc: 'Refresh cache (owner)', usage: '/clearcache', insert: '/clearcache', ownerOnly: 1 },
-	{ command: '/clean', desc: 'Clear your local chat view', usage: '/clean', insert: '/clean' },
-	{ command: '/monitor', desc: 'Open monitor panel', usage: '/monitor', insert: '/monitor' },
-	{ command: '/console', desc: 'Open console panel', usage: '/console', insert: '/console', staffOnly: 1 }
+	{ command: '/topic', desc: 'Set room topic', usage: '/topic your text', insert: '/topic ', icon: 'fa fa-hashtag', category: 'Moderation', staffOnly: 1, keywords: ['room', 'title', 'topic'] },
+	{ command: '/clear', desc: 'Clear room messages', usage: '/clear', insert: '/clear', icon: 'fa fa-eraser', category: 'Moderation', staffOnly: 1, keywords: ['wipe', 'chat'] },
+	{ command: '/clearall', desc: 'Delete all room messages', usage: '/clearall', insert: '/clearall', icon: 'fa fa-trash', category: 'Moderation', staffOnly: 1, keywords: ['clear', 'purge', 'nuke'] },
+	{ command: '/nuke', desc: 'Alias for /clearall', usage: '/nuke', insert: '/nuke', icon: 'fa fa-bomb', category: 'Shortcut', aliasOf: '/clearall', staffOnly: 1, keywords: ['clear', 'wipe'] },
+	{ command: '/mute', desc: 'Mute a user', usage: '/mute username 30 reason', insert: '/mute ', icon: 'fa fa-volume-off', category: 'Moderation', staffOnly: 1, keywords: ['timeout', 'silence'] },
+	{ command: '/unmute', desc: 'Remove mute from a user', usage: '/unmute username', insert: '/unmute ', icon: 'fa fa-volume-up', category: 'Moderation', staffOnly: 1, keywords: ['restore', 'voice'] },
+	{ command: '/kick', desc: 'Kick a user from chat', usage: '/kick username 5 reason', insert: '/kick ', icon: 'fa fa-sign-out', category: 'Moderation', staffOnly: 1, keywords: ['remove', 'timeout'] },
+	{ command: '/unkick', desc: 'Remove a kick restriction', usage: '/unkick username', insert: '/unkick ', icon: 'fa fa-sign-in', category: 'Moderation', staffOnly: 1, keywords: ['restore', 'access'] },
+	{ command: '/ban', desc: 'Ban a user account', usage: '/ban username reason', insert: '/ban ', icon: 'fa fa-gavel', category: 'Moderation', staffOnly: 1, keywords: ['block', 'moderation'] },
+	{ command: '/unban', desc: 'Lift a user ban', usage: '/unban username', insert: '/unban ', icon: 'fa fa-unlock', category: 'Moderation', staffOnly: 1, keywords: ['restore', 'access'] },
+	{ command: '/warn', desc: 'Warn a user', usage: '/warn username reason', insert: '/warn ', icon: 'fa fa-exclamation-triangle', category: 'Moderation', staffOnly: 1, keywords: ['notice', 'alert'] },
+	{ command: '/rename', desc: 'Rename a user', usage: '/rename username newname', insert: '/rename ', icon: 'fa fa-pencil', category: 'Moderation', staffOnly: 1, keywords: ['name', 'change'] },
+	{ command: '/clean', desc: 'Clear your local chat view', usage: '/clean', insert: '/clean', icon: 'fa fa-broom', category: 'Client', clientOnly: 1, action: 'clean', keywords: ['local', 'view'] },
+	{ command: '/effects', desc: 'Open Chat FX and profile effects shop', usage: '/effects', insert: '/effects', icon: 'fa fa-bolt', category: 'Client', clientOnly: 1, action: 'effects', keywords: ['fx', 'animation', 'shop'] },
+	{ command: '/sound', desc: 'Open sound settings', usage: '/sound', insert: '/sound', icon: 'fa fa-volume-up', category: 'Client', clientOnly: 1, action: 'sound', keywords: ['audio', 'volume', 'mute'] },
+	{ command: '/help', desc: 'Show slash command guide', usage: '/help', insert: '/help', icon: 'fa fa-question-circle', category: 'Help', clientOnly: 1, action: 'help', keywords: ['commands', 'guide'] },
+	{ command: '/roll', desc: 'Roll a random number', usage: '/roll 100', insert: '/roll ', icon: 'fa fa-random', category: 'Trolling', clientOnly: 1, action: 'roll', keywords: ['dice', 'random'] },
+	{ command: '/coinflip', desc: 'Flip a coin in chat', usage: '/coinflip', insert: '/coinflip', icon: 'fa fa-circle-o', category: 'Trolling', clientOnly: 1, action: 'coinflip', keywords: ['coin', 'heads', 'tails'] },
+	{ command: '/8ball', desc: 'Ask the magic 8-ball', usage: '/8ball your question', insert: '/8ball ', icon: 'fa fa-question', category: 'Trolling', clientOnly: 1, action: '8ball', keywords: ['fortune', 'random'] },
+	{ command: '/mock', desc: 'Post a playful mock line', usage: '/mock username', insert: '/mock ', icon: 'fa fa-commenting', category: 'Trolling', clientOnly: 1, action: 'mock', keywords: ['joke', 'fun'] },
+	{ command: '/rickroll', desc: 'Drop a classic troll link', usage: '/rickroll', insert: '/rickroll', icon: 'fa fa-music', category: 'Trolling', clientOnly: 1, action: 'rickroll', keywords: ['troll', 'prank'] },
+	{ command: '/monitor', desc: 'Open monitor panel', usage: '/monitor', insert: '/monitor', icon: 'fa fa-area-chart', category: 'Staff', staffOnly: 1, clientOnly: 1, action: 'monitor', keywords: ['status', 'monitoring'] },
+	{ command: '/console', desc: 'Open console panel', usage: '/console', insert: '/console', icon: 'fa fa-terminal', category: 'Staff', staffOnly: 1, clientOnly: 1, action: 'console', keywords: ['exec', 'staff'] },
+	{ command: '/logout', desc: 'Force logout user (owner)', usage: '/logout username', insert: '/logout ', icon: 'fa fa-sign-out', category: 'Owner', ownerOnly: 1, keywords: ['kick', 'session'] },
+	{ command: '/clearcache', desc: 'Refresh cache (owner)', usage: '/clearcache', insert: '/clearcache', icon: 'fa fa-refresh', category: 'Owner', ownerOnly: 1, keywords: ['cache', 'refresh'] },
+	{ command: '/fx', desc: 'Alias for /effects', usage: '/fx', insert: '/fx', icon: 'fa fa-magic', category: 'Shortcut', clientOnly: 1, action: 'effects', aliasOf: '/effects', keywords: ['effects', 'shop'] },
+	{ command: '/commands', desc: 'Alias for /help', usage: '/commands', insert: '/commands', icon: 'fa fa-list', category: 'Shortcut', clientOnly: 1, action: 'help', aliasOf: '/help', keywords: ['help', 'slash'] }
 ];
 
 // PAGE TITLE
@@ -251,6 +273,7 @@ logExist = t => {
 
 appendTopic = data => {
 	$("#show_chat ul").append(renderTopic(data));
+	applyRoomHashtagLinks($('#show_chat ul').children().last());
 	scrollIt(0);
 }
 
@@ -315,6 +338,13 @@ processChatPost = function(message){
 
 processChatCommand = function(message){
 	resetQuote();
+	var localResult = processLocalSlashCommand(message, { sendHandler: processChatPost, mode: 'chat' });
+	if(localResult.handled){
+		if(localResult.release){
+			waitReply = 0;
+		}
+		return;
+	}
 	$.ajax({
 		url: "system/action/chat_command.php",
 		type: "post",
@@ -323,45 +353,27 @@ processChatCommand = function(message){
 		data: { 
 			content: message,
 		},
-		beforeSend: function(){
-			var ccom = 0;
-			if(message == '/console' && isStaff(user_rank)){
-				getConsole();
-				ccom++;
-			}
-			if(message == '/monitor'){
-				getMonitor();
-				ccom++;
-			}
-			if(message == '/clean'){
-				$('.chat_log').replaceWith("");
-				ccom++;
-			}
-			if(ccom > 0){
-				waitReply = 0;
-				return false;
-			}
-		},
 		success: function(response){
 			if(typeof response != 'object'){
 				waitReply = 0;
 			}
 			else {
 				var code = response.code;
+				var notice = response.message ? response.message : '';
 				if(code == 99){
 					noAction();
 				}
 				else if(code == 1){
-					callSuccess(system.actionComplete);
+					callSuccess(notice !== '' ? notice : system.actionComplete);
 				}
 				else if (code == 4){
-					callError(system.error);
+					callError(notice !== '' ? notice : system.error);
 				}
 				else if(code == 14){
 					appendTopic(response.data);
 				}
 				else if (code == 200){
-					callError(system.invalidCommand);
+					callError(notice !== '' ? notice : system.invalidCommand);
 				}
 				else {
 					noAction();
@@ -375,10 +387,223 @@ processChatCommand = function(message){
 	});
 }
 
+processPrivatePost = function(message){
+	$.ajax({
+		url: "system/action/private_process.php",
+		type: "post",
+		cache: false,
+		dataType: 'json',
+		data: {
+			target: currentPrivate,
+			content: message,
+			quote: getPrivateQuote(),
+		},
+		success: function(response){
+			if(typeof response != 'object'){
+				pWait = 0;
+			}
+			else {
+				if(response.code == 1) {
+					if(response.log !== null){
+						appendSelfPrivateMessage(response.log);
+						$('#message_content').focus();
+					}
+				}
+				else if(response.code == 99) {
+					appendCannotPrivate();
+				}
+				pWait = 0;
+			}
+		},
+		error: function(){
+			pWait = 0;
+		}
+	});
+}
+
+processPrivateCommand = function(message){
+	resetPrivateQuote();
+	var localResult = processLocalSlashCommand(message, { sendHandler: processPrivatePost, mode: 'private' });
+	if(localResult.handled){
+		if(localResult.release){
+			pWait = 0;
+		}
+		return;
+	}
+	$.ajax({
+		url: "system/action/chat_command.php",
+		type: "post",
+		cache: false,
+		dataType: 'json',
+		data: {
+			content: message,
+		},
+		success: function(response){
+			if(typeof response != 'object'){
+				pWait = 0;
+			}
+			else {
+				var code = response.code;
+				var notice = response.message ? response.message : '';
+				if(code == 99){
+					noAction();
+				}
+				else if(code == 1){
+					callSuccess(notice !== '' ? notice : system.actionComplete);
+				}
+				else if (code == 4){
+					callError(notice !== '' ? notice : system.error);
+				}
+				else if(code == 14){
+					appendTopic(response.data);
+				}
+				else if (code == 200){
+					callError(notice !== '' ? notice : system.invalidCommand);
+				}
+				else {
+					noAction();
+				}
+				pWait = 0;
+			}
+		},
+		error: function(){
+			pWait = 0;
+		}
+	});
+}
+
+showSlashCommandHelp = function(){
+	var pool = getSlashCommandPool();
+	var html = '<div class="pad_box">';
+	html += '<p class="label bmargin10">Slash commands</p>';
+	html += '<div class="slash_help_list">';
+	for(var i = 0; i < pool.length; i++){
+		html += '<div class="slash_help_item">';
+		html += '<div class="slash_help_cmd">' + pool[i].command + '</div>';
+		html += '<div class="slash_help_txt">' + pool[i].desc + '</div>';
+		html += '</div>';
+	}
+	html += '</div>';
+	html += '<div class="text_xsmall sub_text tmargin10">Tip: type / and use Arrow keys, Enter, or Tab to pick a command.</div>';
+	html += '</div>';
+	showModal(html, 460);
+}
+
+sendSlashGeneratedMessage = function(text, sendHandler){
+	text = $.trim((text || '').toString());
+	if(text === ''){
+		return { handled: true, release: true };
+	}
+	if(typeof sendHandler === 'function'){
+		sendHandler(text);
+	}
+	else {
+		processChatPost(text);
+	}
+	return { handled: true, release: false };
+}
+
+pickRandomSlashReply = function(list){
+	if(!Array.isArray(list) || list.length < 1){
+		return '';
+	}
+	return list[Math.floor(Math.random() * list.length)];
+}
+
+processLocalSlashCommand = function(message, options){
+	options = options || {};
+	var sendHandler = typeof options.sendHandler === 'function' ? options.sendHandler : processChatPost;
+	var localMode = options.mode ? options.mode : 'chat';
+	var clean = $.trim((message || '').toString());
+	if(clean === '' || clean.charAt(0) !== '/'){
+		return { handled: false, release: false };
+	}
+	var split = clean.split(/\s+/);
+	var command = split[0].toLowerCase();
+	if(command === '/console' && isStaff(user_rank)){
+		if(typeof getConsole === 'function'){
+			getConsole();
+		}
+		return { handled: true, release: true };
+	}
+	if(command === '/monitor' && isStaff(user_rank)){
+		if(typeof getMonitor === 'function'){
+			getMonitor();
+		}
+		return { handled: true, release: true };
+	}
+	if(command === '/clean' || command === '/clearlocal'){
+		if(localMode === 'private'){
+			$('#show_private').html('');
+		}
+		else {
+			$('.chat_log').replaceWith('');
+		}
+		callSuccess(system.actionComplete);
+		return { handled: true, release: true };
+	}
+	if(command === '/effects' || command === '/fx'){
+		if(typeof getEffectsShop === 'function'){
+			getEffectsShop();
+		}
+		return { handled: true, release: true };
+	}
+	if(command === '/sound'){
+		if(typeof getSoundSetting === 'function'){
+			getSoundSetting();
+		}
+		return { handled: true, release: true };
+	}
+	if(command === '/help' || command === '/commands'){
+		showSlashCommandHelp();
+		return { handled: true, release: true };
+	}
+	if(command === '/roll'){
+		var max = parseInt(split[1], 10);
+		if(isNaN(max) || max < 2 || max > 9999){
+			max = 100;
+		}
+		var roll = Math.floor(Math.random() * max) + 1;
+		return sendSlashGeneratedMessage('[roll] ' + user_name + ' rolled ' + roll + ' / ' + max, sendHandler);
+	}
+	if(command === '/coinflip'){
+		var face = Math.random() < 0.5 ? 'Heads' : 'Tails';
+		return sendSlashGeneratedMessage('[coinflip] ' + user_name + ' got ' + face, sendHandler);
+	}
+	if(command === '/8ball'){
+		var question = $.trim(clean.replace(/^\/8ball\s*/i, ''));
+		var answers = [
+			'Absolutely yes.',
+			'No chance.',
+			'Try again later.',
+			'Signs point to yes.',
+			'Very unlikely.',
+			'It is certain.',
+			'Ask when the chat calms down.'
+		];
+		var answer = pickRandomSlashReply(answers);
+		if(question !== ''){
+			return sendSlashGeneratedMessage('[8ball] ' + question + ' -> ' + answer, sendHandler);
+		}
+		return sendSlashGeneratedMessage('[8ball] ' + answer, sendHandler);
+	}
+	if(command === '/mock'){
+		var target = split.length > 1 ? split[1] : 'everyone';
+		return sendSlashGeneratedMessage('[mock] ' + target + ' says: "I totally read the rules."', sendHandler);
+	}
+	if(command === '/rickroll'){
+		return sendSlashGeneratedMessage('Never gonna give you up: https://www.youtube.com/watch?v=dQw4w9WgXcQ', sendHandler);
+	}
+	return { handled: false, release: false };
+}
+
 getSlashCommandPool = function(){
 	var pool = [];
 	for(var i = 0; i < slashCommands.length; i++){
 		var item = slashCommands[i];
+		if(item.hidden){
+			continue;
+		}
 		if(item.ownerOnly && user_rank < 100){
 			continue;
 		}
@@ -391,30 +616,61 @@ getSlashCommandPool = function(){
 }
 hideSlashMenu = function(){
 	$('#slash_command_list').html('');
-	$('#slash_command_menu').hide();
+	$('#slash_command_menu').addClass('fhide').hide();
 	slashCommandMatches = [];
 	slashCommandActive = 0;
 }
+
+ensureActiveSlashItemVisible = function(){
+	var current = $('#slash_command_list .slash_command_item').eq(slashCommandActive);
+	if(!current.length || !current[0] || typeof current[0].scrollIntoView !== 'function'){
+		return;
+	}
+	try {
+		current[0].scrollIntoView({ block: 'nearest' });
+	}
+	catch(err){
+		current[0].scrollIntoView(false);
+	}
+}
+
 renderSlashMenu = function(){
 	if(!Array.isArray(slashCommandMatches) || slashCommandMatches.length < 1){
 		hideSlashMenu();
 		return;
 	}
 	var html = '';
+	html += '<div class="slash_command_header">';
+	html += '<div class="slash_command_title">Commands</div>';
+	html += '<div class="slash_command_hint">Up/Down - Enter/Tab - Esc</div>';
+	html += '</div>';
 	for(var i = 0; i < slashCommandMatches.length; i++){
 		var cmd = slashCommandMatches[i];
 		var active = (i === slashCommandActive) ? ' slash_command_active' : '';
+		var icon = cmd.icon ? cmd.icon : 'fa fa-terminal';
+		var category = cmd.category ? cmd.category : 'Command';
 		html += '<div class="slash_command_item' + active + '" data-index="' + i + '">';
+		html += '<div class="slash_command_icon"><i class="' + icon + '"></i></div>';
 		html += '<div class="slash_command_left">';
+		html += '<div class="slash_command_name_row">';
 		html += '<div class="slash_command_name">' + cmd.command + '</div>';
+		html += '<div class="slash_command_tag">' + category + '</div>';
+		html += '</div>';
 		html += '<div class="slash_command_desc">' + cmd.desc + '</div>';
 		html += '</div>';
+		html += '<div class="slash_command_right">';
 		html += '<div class="slash_command_usage">' + cmd.usage + '</div>';
+		if(cmd.aliasOf){
+			html += '<div class="slash_command_alias">Alias: ' + cmd.aliasOf + '</div>';
+		}
+		html += '</div>';
 		html += '</div>';
 	}
 	$('#slash_command_list').html(html);
-	$('#slash_command_menu').show();
+	$('#slash_command_menu').removeClass('fhide').show();
+	ensureActiveSlashItemVisible();
 }
+
 moveSlashSelection = function(step){
 	if(!slashCommandMatches.length){
 		return;
@@ -434,7 +690,10 @@ selectSlashCommand = function(index){
 		return false;
 	}
 	var cmd = slashCommandMatches[index];
-	var input = $('#content');
+	var input = $(slashInputTarget);
+	if(!input.length){
+		input = $('#content');
+	}
 	input.val(cmd.insert);
 	if(input[0] && input[0].setSelectionRange){
 		input[0].setSelectionRange(cmd.insert.length, cmd.insert.length);
@@ -445,28 +704,58 @@ selectSlashCommand = function(index){
 }
 updateSlashMenu = function(value){
 	value = (value || '').toString();
-	if(value === '' || value.charAt(0) !== '/'){
+	var normalized = value.replace(/^\s+/, '');
+	if(normalized === '' || normalized.charAt(0) !== '/'){
 		hideSlashMenu();
 		return;
 	}
-	if(value.indexOf(' ') > -1){
+	if(normalized.indexOf(' ') > -1){
 		hideSlashMenu();
 		return;
 	}
-	var query = value.substring(1).toLowerCase();
+	var query = normalized.substring(1).toLowerCase();
 	var pool = getSlashCommandPool();
-	var matches = [];
+	var ranked = [];
 	for(var i = 0; i < pool.length; i++){
 		var commandName = pool[i].command.substring(1).toLowerCase();
-		if(query === '' || commandName.indexOf(query) === 0){
-			matches.push(pool[i]);
+		var desc = (pool[i].desc || '').toLowerCase();
+		var usage = (pool[i].usage || '').toLowerCase();
+		var keywords = '';
+		if(Array.isArray(pool[i].keywords)){
+			keywords = pool[i].keywords.join(' ').toLowerCase();
+		}
+		var score = -1;
+		if(query === ''){
+			score = 0;
+		}
+		else if(commandName.indexOf(query) === 0){
+			score = 0;
+		}
+		else if(commandName.indexOf(query) > -1){
+			score = 1;
+		}
+		else if(desc.indexOf(query) > -1 || usage.indexOf(query) > -1 || keywords.indexOf(query) > -1){
+			score = 2;
+		}
+		if(score > -1){
+			ranked.push({ item: pool[i], score: score });
 		}
 	}
-	if(matches.length < 1){
+	if(ranked.length < 1){
 		hideSlashMenu();
 		return;
 	}
-	slashCommandMatches = matches.slice(0, 8);
+	ranked.sort(function(a, b){
+		if(a.score !== b.score){
+			return a.score - b.score;
+		}
+		return a.item.command.length - b.item.command.length;
+	});
+	var matches = [];
+	for(var j = 0; j < ranked.length; j++){
+		matches.push(ranked[j].item);
+	}
+	slashCommandMatches = matches.slice(0, slashMenuLimit);
 	slashCommandActive = 0;
 	renderSlashMenu();
 }
@@ -488,6 +777,9 @@ appendChatHistory = data => {
 		}
 	}
 	$("#show_chat ul").prepend(message);
+	if(message !== ''){
+		applyRoomHashtagLinks($('#show_chat ul'));
+	}
 }
 
 loadChatHistory = data => {
@@ -500,6 +792,9 @@ loadChatHistory = data => {
 		}
 	}
 	$("#show_chat ul").html(message);
+	if(message !== ''){
+		applyRoomHashtagLinks($('#show_chat ul'));
+	}
 	scrollIt(0);
 }
 
@@ -678,6 +973,9 @@ appendPrivateHistory = data => {
 		}
 	}
 	$("#show_private").prepend(message);
+	if(message !== ''){
+		applyRoomHashtagLinks($('#show_private'));
+	}
 }
 
 loadPrivateHistory = data => {
@@ -689,6 +987,9 @@ loadPrivateHistory = data => {
 		}
 	}
 	$("#show_private").html(message);
+	if(message !== ''){
+		applyRoomHashtagLinks($('#show_private'));
+	}
 	privSpinner(0);
 	scrollPriv(1);
 	morePriv = 1;
@@ -1497,8 +1798,138 @@ initEffectsPreview = function(){
 		}, 70 + (index * 90));
 	});
 }
+normalizeRoomTagName = function(name){
+	return (name || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+parseRoomSwitchArgs = function(raw){
+	raw = (raw || '').toString();
+	var match = raw.match(/switchRoom\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+	if(!match){
+		return null;
+	}
+	return {
+		room: parseInt(match[1], 10),
+		pass: parseInt(match[2], 10),
+		rank: parseInt(match[3], 10)
+	};
+}
+findRoomFromTagScope = function(tag, scope){
+	var key = normalizeRoomTagName(tag);
+	if(key === ''){
+		return null;
+	}
+	var found = null;
+	$(scope).find('.room_element[onclick*="switchRoom"]').each(function(){
+		var row = $(this);
+		var args = parseRoomSwitchArgs(row.attr('onclick'));
+		if(!args){
+			return;
+		}
+		var roomName = $.trim(row.find('.roomtitle').first().text());
+		if(normalizeRoomTagName(roomName) === key){
+			found = args;
+			return false;
+		}
+	});
+	return found;
+}
+openRoomFromTag = function(tag){
+	var target = findRoomFromTagScope(tag, document);
+	if(target){
+		switchRoom(target.room, target.pass, target.rank);
+		return;
+	}
+	$.ajax({
+		url: 'system/panel/room_list.php',
+		type: 'post',
+		cache: false,
+		dataType: 'json',
+		success: function(response){
+			if(typeof response != 'object' || !response.content){
+				callError(system.error);
+				return;
+			}
+			var holder = $('<div></div>').html(response.content);
+			var remoteTarget = findRoomFromTagScope(tag, holder);
+			if(remoteTarget){
+				switchRoom(remoteTarget.room, remoteTarget.pass, remoteTarget.rank);
+			}
+			else {
+				callError('Room #' + tag + ' was not found.');
+			}
+		},
+		error: function(){
+			callError(system.error);
+		}
+	});
+}
+linkifyRoomTagNode = function(root){
+	if(!root || root.nodeType !== 1){
+		return;
+	}
+	if(typeof document.createTreeWalker !== 'function' || typeof NodeFilter === 'undefined'){
+		return;
+	}
+	if($(root).attr('data-room-tags') == '1'){
+		return;
+	}
+	var textNodes = [];
+	var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+	while(walker.nextNode()){
+		textNodes.push(walker.currentNode);
+	}
+	var pattern = /(^|[\s(])#([A-Za-z0-9][A-Za-z0-9_-]{1,29})/g;
+	for(var i = 0; i < textNodes.length; i++){
+		var textNode = textNodes[i];
+		var parent = textNode.parentNode;
+		if(!parent || textNode.nodeValue.indexOf('#') === -1){
+			continue;
+		}
+		if($(parent).closest('a, .room_hash_link').length){
+			continue;
+		}
+		var text = textNode.nodeValue;
+		var frag = document.createDocumentFragment();
+		var hasMatch = false;
+		var last = 0;
+		var match;
+		pattern.lastIndex = 0;
+		while((match = pattern.exec(text)) !== null){
+			hasMatch = true;
+			var before = text.substring(last, match.index);
+			if(before !== ''){
+				frag.appendChild(document.createTextNode(before));
+			}
+			if(match[1] !== ''){
+				frag.appendChild(document.createTextNode(match[1]));
+			}
+			var tag = match[2];
+			var link = document.createElement('span');
+			link.className = 'room_hash_link';
+			link.setAttribute('data-room-tag', tag);
+			link.textContent = '#' + tag;
+			frag.appendChild(link);
+			last = match.index + match[0].length;
+		}
+		if(hasMatch){
+			var tail = text.substring(last);
+			if(tail !== ''){
+				frag.appendChild(document.createTextNode(tail));
+			}
+			parent.replaceChild(frag, textNode);
+		}
+	}
+	$(root).attr('data-room-tags', '1');
+}
+applyRoomHashtagLinks = function(context){
+	var scope = context ? $(context) : $(document);
+	scope.find('.mbubble, .hunter_private, .target_private, .topic_message').each(function(){
+		linkifyRoomTagNode(this);
+	});
+}
 triggerLinkedMessageEffects = function(context){
 	var scope = context ? $(context) : $(document);
+	applyRoomHashtagLinks(scope);
 	scope.find('.bubble.cefx_link, .hunter_private.cefx_link, .target_private.cefx_link').each(function(){
 		var bubble = $(this);
 		if(bubble.attr('data-link-fired') == '1'){
@@ -2550,14 +2981,24 @@ getDiscord = function(){
 	});
 }
 
-getPublicThemeLeft = function(view){
+getPublicThemeLeft = function(view, editTheme, newTheme, allowEdit){
 	var targetView = (view == 'builder') ? 'builder' : 'market';
+	var selectedTheme = parseInt(editTheme, 10);
+	if(isNaN(selectedTheme) || selectedTheme < 1){
+		selectedTheme = 0;
+	}
+	var forceNew = (newTheme == 1) ? 1 : 0;
+	var forceEdit = (allowEdit == 1) ? 1 : 0;
 	$.ajax({
 		url: "system/panel/public_themes.php",
 		type: "post",
 		cache: false,
 		dataType: "json",
-		data: {},
+		data: {
+			edit_theme: selectedTheme,
+			new_theme: forceNew,
+			allow_edit: forceEdit
+		},
 		beforeSend: function(){
 			prepareLeft(420);
 		},
@@ -2577,6 +3018,7 @@ getPublicThemeLeft = function(view){
 		}
 	});
 }
+
 
 renderExtensionsPanel = function(){
 	var $wrap = $('#extensions_dynamic_list');
@@ -3463,14 +3905,13 @@ adjustHeight = function(){
 	}
 	else {
 		$("#chat_left").removeClass("cleft").addClass("cleft2");
-		$("#chat_left").css("top", headHeight);
+		$("#chat_left").css("top", "0px");
 	}
 	if(winWidth > rightHide){
 		$("#chat_right").removeClass("cright2").addClass("cright").css("display", "table-cell");
 	}
 	else {
 		$("#chat_right").removeClass("cright").addClass("cright2");
-		$("#chat_right").css("top", headHeight);
 	}
 	if(winWidth < 801){
 		if($('.ppanel:visible').length){
@@ -3613,7 +4054,7 @@ $(document).ready(function(){
 		if(!$(event.target).closest('#reaction_picker_menu, .msg_react_more, .log_react').length){
 			closeReactionMenu();
 		}
-		if(!$(event.target).closest('#slash_command_menu, #content').length){
+		if(!$(event.target).closest('#slash_command_menu, #content, #message_content').length){
 			hideSlashMenu();
 		}
 	});
@@ -3624,11 +4065,12 @@ $(document).ready(function(){
 		selectSlashCommand($(this).attr('data-index'));
 	});
 
-	$(document).on('input focus', '#content', function(){
+	$(document).on('input keyup focus', '#content, #message_content', function(){
+		slashInputTarget = '#' + $(this).attr('id');
 		updateSlashMenu($(this).val());
 	});
 
-	$(document).on('keydown', '#content', function(event){
+	$(document).on('keydown', '#content, #message_content', function(event){
 		if(!$('#slash_command_menu:visible').length || slashCommandMatches.length < 1){
 			return;
 		}
@@ -3655,7 +4097,7 @@ $(document).ready(function(){
 		if(event.originalEvent && event.originalEvent.animationName){
 			anim = event.originalEvent.animationName;
 		}
-		if(anim != '' && !/^(cfx_pop|cfx_lift|cfx_swing|cfx_pulse|cfx_tilt|cfx_jelly|cfx_bloom|cfx_rocket|cfx_wave|cfx_slam|cfx_flip|cfx_volt|cfx_rift|cfx_hammer|cfx_comet|cfx_prism|cfx_duel)$/.test(anim)){
+		if(anim != '' && !/^(cfx_pop|cfx_lift|cfx_swing|cfx_pulse|cfx_tilt|cfx_jelly|cfx_bloom|cfx_rocket|cfx_wave|cfx_slam|cfx_flip|cfx_volt|cfx_rift|cfx_hammer|cfx_comet|cfx_prism|cfx_duel|cfx_phantom|cfx_orbit|cfx_glitch|cfx_nova|cfx_meteor|cfx_warp|cfx_hyper|cfx_chain)$/.test(anim)){
 			return;
 		}
 		var matches = this.className.match(/cefx_\d+/g);
@@ -3823,6 +4265,7 @@ $(document).ready(function(){
 	});
 	
 	$('#private_input').submit(function(event){
+		hideSlashMenu();
 		var message = $('#message_content').val();
 		$('#message_content').val('');
 		if(message == ''){
@@ -3836,37 +4279,12 @@ $(document).ready(function(){
 		else{
 			if(pWait == 0){
 				pWait = 1;
-				$.ajax({
-					url: "system/action/private_process.php",
-					type: "post",
-					cache: false,
-					dataType: 'json',
-					data: { 
-						target: currentPrivate,
-						content: message,
-						quote: getPrivateQuote(),
-					},
-					success: function(response){
-						if(typeof response != 'object'){
-							pwait = 0;
-						}
-						else {
-							if(response.code == 1) {
-								if(response.log !== null){
-									appendSelfPrivateMessage(response.log);
-									$('#message_content').focus();
-								}
-							}
-							else if(response.code == 99) {
-								appendCannotPrivate();
-							}
-							pWait = 0;
-						}
-					},
-					error: function(){
-						pwait = 0;		
-					}
-				});
+				if(message.match("^\/")){
+					processPrivateCommand(message);
+				}
+				else {
+					processPrivatePost(message);
+				}
 			}
 			else {
 				event.preventDefault();
@@ -3916,32 +4334,60 @@ handleGoofyEvents = function(events){
 	}
 }
 
+var goofyAnnouncementTimer = 0;
+var goofyJumpTimer = 0;
+
 showGoofyAnnouncement = function(data, drag){
 	var text = data.text || '';
+	var $box = $('#goofy_event_box');
 	$('#goofy_event_text').text(text);
-	$('#goofy_event_box').show();
+	$box.removeClass('fhide').stop(true, true).fadeIn(120);
 	if(drag && $("#goofy_event_box").draggable){
 		$("#goofy_event_box").draggable({ handle: '#goofy_event_handle', containment: 'document' });
 	}
-	setTimeout(function(){ $('#goofy_event_box').fadeOut(); }, 10000);
+	else if($box.data('ui-draggable')){
+		$box.draggable('destroy');
+	}
+	if(goofyAnnouncementTimer){
+		clearTimeout(goofyAnnouncementTimer);
+	}
+	goofyAnnouncementTimer = setTimeout(function(){
+		$box.fadeOut(180, function(){
+			$box.addClass('fhide');
+		});
+	}, 10000);
 }
 
 showGoofyJumpscare = function(data, drag){
 	var img = data.image || '';
 	var text = data.text || '';
 	var audio = data.audio || '';
+	var $jump = $('#goofy_jumpscare');
 	if(img !== ''){
 		$('#goofy_jumpscare_img').attr('src', img);
 		$('#goofy_jumpscare_text').text(text);
-		$('#goofy_jumpscare').show();
+		$jump.removeClass('fhide').stop(true, true).css('display', 'flex');
 		if(drag && $("#goofy_jumpscare").draggable){
 			$("#goofy_jumpscare").draggable({ containment: 'document' });
 		}
+		else if($jump.data('ui-draggable')){
+			$jump.draggable('destroy');
+		}
 		if(audio !== ''){
 			$('#goofy_audio_player').attr('src', audio);
-			$('#goofy_audio_player')[0].play();
+			try{
+				$('#goofy_audio_player')[0].play();
+			}
+			catch(e){}
 		}
-		setTimeout(function(){ $('#goofy_jumpscare').fadeOut(); }, 8000);
+		if(goofyJumpTimer){
+			clearTimeout(goofyJumpTimer);
+		}
+		goofyJumpTimer = setTimeout(function(){
+			$jump.fadeOut(180, function(){
+				$jump.addClass('fhide');
+			});
+		}, 8000);
 	}
 }
 
@@ -4187,6 +4633,17 @@ triggerGoofyBurst = function(data){
 	
 	$(document).on('click', '.post_menu_item', function(){		
 		$(this).parent('.post_menu').hide();
+	});
+
+	$(document).on('click', '.room_hash_link', function(event){
+		event.preventDefault();
+		event.stopPropagation();
+		var roomTag = ($(this).attr('data-room-tag') || '').toString();
+		if(roomTag === ''){
+			return false;
+		}
+		openRoomFromTag(roomTag);
+		return false;
 	});
 
 	$(document).on('click', '#news_file, #wall_file, #news_data, #friend_post', function(){

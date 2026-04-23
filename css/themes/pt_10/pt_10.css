@@ -1,0 +1,19 @@
+@import url('../Lite/Lite.css');
+a { color: #38BDF8; }
+body { background: #0F172A; color: #E2E8F0; }
+input, textarea, .post_input_container { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14) !important; color: #E2E8F0; }
+.setdef, .default_color, .user { color: #E2E8F0; }
+.bhead, .bsidebar, .modal_top, .pro_top, .bfoot, .foot, .back_pmenu, .back_ptop { background: #111827; color: #FFFFFF; fill: #FFFFFF; }
+.theme_color, .menui, .subi { color: #38BDF8; }
+.theme_btn, .back_theme, .my_notice { background: #38BDF8; color: #FFFFFF; }
+.default_btn, .back_default, .defaultd_btn, .send_btn { background: #334155; color: #FFFFFF; }
+.backglob, .back_chat, .back_priv, .back_panel, .back_menu, .back_box, .back_input, .back_modal, .page_element, .back_quote { background: rgba(15,23,42,0.85); color: #E2E8F0; }
+.mbubble, .hunter_private, .targ_quote, .reply_item, .cquote { background: rgba(30,41,59,0.95); color: #E2E8F0; }
+.my_log, .target_private, .hunt_quote { background: #1E293B; color: #FFFFFF; }
+.chat_system, .sub_text, .sub_date, .input_item { color: rgba(255,255,255,0.14); }
+.bback, .bbackhover, .modal_mback { background: rgba(255,255,255,0.06); }
+.bhover:hover, .bhoverr:hover, .bbackhover:hover, .blisting:hover, .submenu:hover, .bmenu:hover, .bpmenu:hover, .bsub:hover { background: rgba(255,255,255,0.1); }
+.bborder, .tborder, .lborder, .rborder, .fborder, .blisting, .blist, .float_top, .float_ctop, .modal_mborder { border-color: rgba(255,255,255,0.14); }
+.bshadow, .page_element, .float_menu, .btnshadow, .pboxed, .tab_menu { box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+.modal_back { background-color: rgba(0,0,0,0.55); }
+.backglob, .back_chat, .back_priv, .back_panel, .back_menu, .back_box, .back_input, .back_modal, .page_element, .back_quote { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }

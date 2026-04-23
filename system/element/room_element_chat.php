@@ -17,6 +17,7 @@ if($data['user_id'] == $boom['room_creator']){
 <div class="room_element room_celem blisting" onclick="switchRoom(<?php echo $boom['room_id']; ?>, <?php echo $ask; ?>, <?php echo $boom['access']; ?>);">
 	<div class="bcell_mid room_cicon_wrap">
 		<img class="room_cicon lazy" data-src="<?php echo myRoomIcon($boom['room_icon']); ?>" src="<?php echo imgLoader(); ?>"/>
+		<div class="room_cicon_count"><?php echo $boom['room_count']; ?></div>
 	</div>
 	<div class="bcell_mid room_content">
 		<div class="room_cname roomtitle">

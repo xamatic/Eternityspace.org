@@ -87,7 +87,7 @@ input,textarea,.post_input_container{font-family:'Roboto',sans-serif,'FontAwesom
 
 /* headers colors and top box colors */
 .bhead{background:#292929;color:#fff box-shadow:0 2px 5px rgb(0,0,0,0.8);}
-.bsidebar{background: #222; color:#fff}
+.bsidebar{background: #222; color:#fff; fill: #fff;}
 .modal_top,.pro_top{background:#171717;color:#fff}
 .bfoot{background:#292929;color:#fff}
 .foot{background:#222; color:#fff}

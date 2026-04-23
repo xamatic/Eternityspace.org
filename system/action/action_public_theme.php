@@ -28,7 +28,7 @@ function publicThemeLogoPath($folder){
 	return $logo;
 }
 function publicThemeEnsureUploadDir(){
-	$path = BOOM_PATH . '/theme_public';
+	$path = BOOM_PATH . '/upload/theme_public';
 	if(!is_dir($path)){
 		@mkdir($path, 0755, true);
 	}
@@ -77,14 +77,24 @@ if(isset($_POST['save_public_theme']) || isset($_POST['submit_public_theme'])){
 		echo boomCode(4);
 		die();
 	}
+	$overwrite_theme = (int) escape($_POST['overwrite_theme'] ?? 0, true);
+	$theme_id = (int) escape($_POST['theme_id'] ?? 0, true);
+	$current = [];
+	if($theme_id > 0){
+		$current = publicThemeGetUserThemeById($data['user_id'], $theme_id);
+		if(empty($current)){
+			echo boomCode(4);
+			die();
+		}
+		$can_overwrite = ($overwrite_theme === 1 && (int) $current['theme_status'] === 2);
+		if(((int) $current['theme_locked'] > 0 || (int) $current['theme_status'] > 0) && !$can_overwrite){
+			echo boomCode(5);
+			die();
+		}
+	}
 	$theme_name = publicThemeSanitizeName($_POST['theme_name'] ?? '');
 	if($theme_name == ''){
 		echo boomCode(2);
-		die();
-	}
-	$current = publicThemeGetByUser($data['user_id']);
-	if(!empty($current) && (int) $current['theme_locked'] > 0){
-		echo boomCode(5);
 		die();
 	}
 
@@ -92,7 +102,9 @@ if(isset($_POST['save_public_theme']) || isset($_POST['submit_public_theme'])){
 	$theme_css = publicThemeSanitizeCss($_POST['theme_custom_css'] ?? '');
 	$theme_bg = publicThemeNormalizeBackground($_POST['theme_background'] ?? '');
 
-	$status = isset($_POST['submit_public_theme']) ? 1 : 0;
+	$is_submit = isset($_POST['submit_public_theme']);
+	$status = $is_submit ? 1 : 0;
+	$theme_locked = $is_submit ? 1 : 0;
 	$submitted = ($status == 1) ? time() : 0;
 	$slug = strtolower(str_replace(' ', '-', $theme_name));
 	$slug = preg_replace('/[^a-z0-9-]/', '', $slug);
@@ -110,14 +122,15 @@ if(isset($_POST['save_public_theme']) || isset($_POST['submit_public_theme'])){
 	if(empty($current)){
 		$mysqli->query("INSERT INTO boom_public_theme
 			(theme_user, theme_name, theme_slug, theme_status, theme_locked, theme_config, theme_custom_css, theme_background, theme_folder, theme_note, theme_created, theme_updated, theme_submitted, theme_reviewed, theme_reviewer)
-			VALUES ('{$data['user_id']}', '$name_sql', '$slug_sql', '$status', '0', '$config_sql', '$css_sql', '$bg_sql', '', '', '$now', '$now', '$submitted', '0', '0')");
+			VALUES ('{$data['user_id']}', '$name_sql', '$slug_sql', '$status', '$theme_locked', '$config_sql', '$css_sql', '$bg_sql', '', '', '$now', '$now', '$submitted', '0', '0')");
+		$theme_id = (int) $mysqli->insert_id;
 	}
 	else {
-		$theme_id = (int) $current['theme_id'];
 		$mysqli->query("UPDATE boom_public_theme
 			SET theme_name = '$name_sql',
 				theme_slug = '$slug_sql',
 				theme_status = '$status',
+				theme_locked = '$theme_locked',
 				theme_config = '$config_sql',
 				theme_custom_css = '$css_sql',
 				theme_background = '$bg_sql',
@@ -131,6 +144,8 @@ if(isset($_POST['save_public_theme']) || isset($_POST['submit_public_theme'])){
 	$response = [
 		'status' => $status,
 		'status_text' => publicThemeStatusText($status),
+		'theme_id' => $theme_id,
+		'locked' => $theme_locked,
 	];
 	echo boomCode(1, $response);
 	die();
@@ -141,10 +156,19 @@ if(isset($_POST['upload_public_theme_bg'])){
 		echo boomCode(4);
 		die();
 	}
-	$current = publicThemeGetByUser($data['user_id']);
-	if(!empty($current) && (int) $current['theme_locked'] > 0){
-		echo boomCode(5);
-		die();
+	$overwrite_theme = (int) escape($_POST['overwrite_theme'] ?? 0, true);
+	$theme_id = (int) escape($_POST['theme_id'] ?? 0, true);
+	if($theme_id > 0){
+		$current = publicThemeGetUserThemeById($data['user_id'], $theme_id);
+		if(empty($current)){
+			echo boomCode(4);
+			die();
+		}
+		$can_overwrite = ($overwrite_theme === 1 && (int) $current['theme_status'] === 2);
+		if(((int) $current['theme_locked'] > 0 || (int) $current['theme_status'] > 0) && !$can_overwrite){
+			echo boomCode(5);
+			die();
+		}
 	}
 	if(!isset($_FILES['theme_background_file']) || !is_array($_FILES['theme_background_file'])){
 		echo boomCode(0);
@@ -166,15 +190,15 @@ if(isset($_POST['upload_public_theme_bg'])){
 		die();
 	}
 	$file = 'ptbg_' . encodeFile($ext);
-	boomMoveFile('theme_public/' . $file);
-	$stored = 'theme_public/' . $file;
+	boomMoveFile('upload/theme_public/' . $file);
+	$stored = 'upload/theme_public/' . $file;
 	if(!sourceExist($stored)){
 		echo boomCode(0);
 		die();
 	}
 	echo boomCode(1, [
 		'background' => $stored,
-		'url' => BOOM_DOMAIN . $stored,
+		'url' => publicThemeBackgroundUrl($stored),
 	]);
 	die();
 }
@@ -224,7 +248,7 @@ if(isset($_POST['moderate_public_theme'])){
 		$note_sql = escape($note);
 		$mysqli->query("UPDATE boom_public_theme
 			SET theme_status = '3',
-				theme_locked = '0',
+				theme_locked = '1',
 				theme_note = '$note_sql',
 				theme_reviewed = '" . time() . "',
 				theme_reviewer = '{$data['user_id']}'
@@ -255,11 +279,38 @@ if(isset($_POST['apply_public_theme'])){
 	}
 	$theme_sql = escape($folder);
 	$mysqli->query("UPDATE boom_users SET user_theme = '$theme_sql', user_action = user_action + 1 WHERE user_id = '{$data['user_id']}' LIMIT 1");
+	publicThemeTrackInstall($theme_id, $data['user_id']);
+	$installs = publicThemeInstallCount($theme_id);
 	redisUpdateUser($data['user_id']);
 	echo boomCode(1, [
 		'theme' => $folder,
+		'theme_id' => $theme_id,
+		'installs' => $installs,
 		'logo' => publicThemeLogoPath($folder),
 		'tv' => time(),
+	]);
+	die();
+}
+
+if(isset($_POST['rate_public_theme'])){
+	$theme_id = (int) escape($_POST['theme_id'] ?? 0, true);
+	$rate = (int) escape($_POST['theme_rate'] ?? 0, true);
+	if($theme_id < 1 || $rate < 1 || $rate > 5){
+		echo boomCode(3);
+		die();
+	}
+	$theme = publicThemeGetById($theme_id);
+	if(empty($theme) || (int) $theme['theme_status'] !== 2){
+		echo boomCode(2);
+		die();
+	}
+	publicThemeSaveRating($theme_id, $data['user_id'], $rate);
+	$stats = publicThemeRatingStats($theme_id);
+	echo boomCode(1, [
+		'theme_id' => $theme_id,
+		'rate_avg' => $stats['avg'],
+		'rate_count' => $stats['count'],
+		'my_rate' => publicThemeUserRating($theme_id, $data['user_id']),
 	]);
 	die();
 }
@@ -287,13 +338,19 @@ if(isset($_POST['delete_public_theme'])){
 	}
 
 	$bg = publicThemeNormalizeBackground((string) $theme['theme_background']);
-	if($bg != '' && strpos($bg, 'theme_public/') === 0){
-		$bg_path = BOOM_PATH . '/' . $bg;
-		if(file_exists($bg_path)){
-			@unlink($bg_path);
+	if($bg != '' && (strpos($bg, 'upload/theme_public/') === 0 || strpos($bg, 'theme_public/') === 0)){
+		$bg_sql = escape($bg);
+		$shared = $mysqli->query("SELECT theme_id FROM boom_public_theme WHERE theme_background = '$bg_sql' AND theme_id != '$theme_id' LIMIT 1");
+		if(!$shared || $shared->num_rows < 1){
+			$bg_path = BOOM_PATH . '/' . $bg;
+			if(file_exists($bg_path)){
+				@unlink($bg_path);
+			}
 		}
 	}
 
+	$mysqli->query("DELETE FROM boom_public_theme_install WHERE theme_id = '$theme_id'");
+	$mysqli->query("DELETE FROM boom_public_theme_rate WHERE theme_id = '$theme_id'");
 	$mysqli->query("DELETE FROM boom_public_theme WHERE theme_id = '$theme_id' LIMIT 1");
 	redisUpdateUser($data['user_id']);
 	echo boomCode(1);

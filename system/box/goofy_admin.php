@@ -31,7 +31,7 @@ if(!canGoofyAdmin()){
 		<div class="setting_element tpad10">
 			<p class="label">Targets</p>
 			<select id="goofy_announce_target_mode">
-				<option value="all">All users in room</option>
+				<option value="all">All users (global)</option>
 				<option value="some">Some users (comma usernames)</option>
 			</select>
 			<input id="goofy_announce_targets" class="full_input tmargin5" type="text" maxlength="300" placeholder="name1, name2"/>
@@ -70,7 +70,7 @@ if(!canGoofyAdmin()){
 		<div class="setting_element tpad10">
 			<p class="label">Targets</p>
 			<select id="goofy_jump_target_mode">
-				<option value="all">All users in room</option>
+				<option value="all">All users (global)</option>
 				<option value="some">Some users (comma usernames)</option>
 			</select>
 			<input id="goofy_jump_targets" class="full_input tmargin5" type="text" maxlength="300" placeholder="name1, name2"/>
@@ -90,7 +90,7 @@ if(!canGoofyAdmin()){
 		<div class="setting_element tpad10">
 			<p class="label">Targets</p>
 			<select id="goofy_audio_target_mode">
-				<option value="all">All users in room</option>
+				<option value="all">All users (global)</option>
 				<option value="some">Some users (comma usernames)</option>
 			</select>
 			<input id="goofy_audio_targets" class="full_input tmargin5" type="text" maxlength="300" placeholder="name1, name2"/>
@@ -116,7 +116,7 @@ if(!canGoofyAdmin()){
 		<div class="setting_element tpad10">
 			<p class="label">Targets</p>
 			<select id="goofy_random_target_mode">
-				<option value="all">All users in room</option>
+				<option value="all">All users (global)</option>
 				<option value="some">Some users (comma usernames)</option>
 			</select>
 			<input id="goofy_random_targets" class="full_input tmargin5" type="text" maxlength="300" placeholder="name1, name2"/>

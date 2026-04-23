@@ -27,7 +27,8 @@ ensureGoofyDirectory();
 $target_mode = isset($_POST['target_mode']) ? escape($_POST['target_mode']) : 'all';
 $target_mode = ($target_mode === 'some') ? 'some' : 'all';
 $raw_targets = isset($_POST['targets']) ? $_POST['targets'] : '';
-$room = isset($_POST['room']) ? (int) escape($_POST['room'], true) : $data['user_roomid'];
+// Events from this panel are always global so every connected chat user can receive them.
+$room = 0;
 
 function goofyTargetModeTargets($mode, $raw, $room){
     if($mode !== 'some'){
